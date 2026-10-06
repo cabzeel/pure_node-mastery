@@ -59,9 +59,22 @@ function unauthorizedHandler(res, public_dir) {
   });
 }
 
+function writeToDB(db_file, db, callback) {
+  fs.writeFile(db_file, JSON.stringify(db, null, 2), (err) => {
+    if (err) {
+      console.error("database write error:", err.message);
+      callback(err);
+      return;
+    }
+
+    callback(null);
+  });
+}
+
 module.exports = {
   dbLogicPrimer,
   clearDatabase,
   passwordHash,
   unauthorizedHandler,
+  writeToDB,
 };

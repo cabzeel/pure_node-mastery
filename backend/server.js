@@ -6,6 +6,7 @@ const {
   dbLogicPrimer,
   passwordHash,
   unauthorizedHandler,
+  writeToDB,
 } = require("./utils/app");
 
 //define global variables:
@@ -29,32 +30,40 @@ const MIME_TYPES = {
   ".png": "image/png",
   ".jpg": "image/JPEG",
 };
+
 //public directory..
 const PUBLIC_DIR = path.join(__dirname, "public");
 
 const server = http.createServer((req, res) => {
   //handle serving...
   const { url, method } = req;
+
   //parsed url:
   const parsedURL = new URL(url, "http://localhost:3000");
   const pathName = parsedURL.pathname;
+
   //get file name
   const filename = pathName === "/" ? "signup.html" : pathName;
+
   //get filepath
   const filepath = path.join(PUBLIC_DIR, filename);
+
   //get file extension
   const ext = path.extname(filepath);
+
   //content type
   const contentType = MIME_TYPES[ext] || "application/octet";
+
   //sign up
   if (url === "/api/signup" && method === "POST") {
     let body = "";
+
     //check for data streams:
     req.on("data", (chunk) => {
       body += chunk.toString();
     });
-    //req.on end
 
+    //req on end
     req.on("end", async () => {
       try {
         const parsedData = JSON.parse(body);
@@ -62,6 +71,7 @@ const server = http.createServer((req, res) => {
         const hashedPassword = await passwordHash(parsedData.password, salt);
 
         const incomingEmail = parsedData.email.toLowerCase().trim();
+
         const emailExists = USERS_DB.some(
           (user) => user.email.toLowerCase().trim() === incomingEmail,
         );
@@ -78,7 +88,9 @@ const server = http.createServer((req, res) => {
           );
           return;
         }
+
         const userID = crypto.randomUUID();
+
         const newUser = {
           id: userID,
           name: parsedData.name,
@@ -88,6 +100,7 @@ const server = http.createServer((req, res) => {
         };
 
         USERS_DB.push(newUser);
+
         fs.writeFile(
           USERS_DB_FILE,
           JSON.stringify(USERS_DB, null, 2),
@@ -97,10 +110,12 @@ const server = http.createServer((req, res) => {
         );
 
         const token = crypto.randomBytes(32).toString("hex");
+
         SESSIONS_DB[token] = {
           email: newUser.email,
           createdAt: Date.now(),
         };
+
         //write token to storage...
         fs.writeFile(
           SESSIONS_DB_FILE,
@@ -110,7 +125,9 @@ const server = http.createServer((req, res) => {
               console.error("Session database write error:", err.message);
           },
         );
+
         res.writeHead(200, { "content-type": "application/json" });
+
         res.end(
           JSON.stringify({
             success: true,
@@ -125,11 +142,14 @@ const server = http.createServer((req, res) => {
         console.error(error);
       }
     });
+
     return;
   }
+
   //sign in || login
   if (url === "/api/login" && method === "POST") {
     let body = "";
+
     console.log(url);
 
     req.on("data", (chunk) => {
@@ -143,68 +163,84 @@ const server = http.createServer((req, res) => {
       const user = USERS_DB.find(
         (user) => user.email === email.trim().toLowerCase(),
       );
+
       //password validation...
       if (user) {
         const isPasswordMatch =
           (await passwordHash(password, user.salt)) === user.password;
+
         if (!isPasswordMatch) {
-          res.writeHead(401, { "content-type": "application/json" });
+          res.writeHead(401, {
+            "content-type": "application/json",
+          });
+
           res.end(
             JSON.stringify({
               success: false,
               msg: "Invalid password",
             }),
           );
+
           return;
         }
 
         const token = crypto.randomBytes(32).toString("hex");
+
         SESSIONS_DB[token] = {
           email: email,
           createdAt: Date.now(),
         };
-        //write token to storage...
-        fs.writeFile(
-          SESSIONS_DB_FILE,
-          JSON.stringify(SESSIONS_DB, null, 2),
-          (err) => {
-            if (err) {
-              console.error("Session database write error:", err.message);
-              res.writeHead(503, { "content-type": "application/json" });
-              res.end(
-                JSON.stringify({
-                  success: false,
-                  message: "error deleting token",
-                }),
-              );
-              return;
-            }
 
-            res.writeHead(200, { "content-type": "application/json" });
+        //write token to storage...
+        writeToDB(SESSIONS_DB_FILE, SESSIONS_DB, (err) => {
+          if (err) {
+            res.writeHead(503, {
+              "content-type": "application/json",
+            });
+
             res.end(
               JSON.stringify({
-                success: true,
-                token: token,
-                user: {
-                  name: user.name,
-                  email: user.email,
-                },
+                success: false,
+                message: "error completing process",
               }),
             );
-          },
-        );
+
+            return;
+          }
+
+          res.writeHead(200, {
+            "content-type": "application/json",
+          });
+
+          res.end(
+            JSON.stringify({
+              success: true,
+              token: token,
+              user: {
+                name: user.name,
+                email: user.email,
+              },
+            }),
+          );
+        });
+
         return;
       } else {
-        res.writeHead(401, { "content-type": "application/json" });
+        res.writeHead(401, {
+          "content-type": "application/json",
+        });
+
         res.end(
           JSON.stringify({
             success: false,
             msg: "user does not exist",
           }),
         );
+
         return;
       }
     });
+
     return;
   }
 
@@ -218,52 +254,69 @@ const server = http.createServer((req, res) => {
       unauthorizedHandler(res, PUBLIC_DIR);
       return;
     }
+
     //checking if token is passed its lifespan
     const timeElapsed = Date.now() - SESSIONS_DB[tokenParam].createdAt;
 
     //if invalid token...
     if (timeElapsed > SESSION_LIFESPAN) {
       delete SESSIONS_DB[tokenParam];
-      fs.writeFile(
-        SESSIONS_DB_FILE,
-        JSON.stringify(SESSIONS_DB, null, 2),
-        (err) => {
-          if (err) console.error("Session database write error:", err.message);
-        },
-      );
-      unauthorizedHandler(res, PUBLIC_DIR);
-      return;
-    }
-    //if valid token
 
-    console.log(`deleting active session for ${SESSIONS_DB[tokenParam].email}`);
-
-    delete SESSIONS_DB[tokenParam];
-    fs.writeFile(
-      SESSIONS_DB_FILE,
-      JSON.stringify(SESSIONS_DB, null, 2),
-      (err) => {
+      writeToDB(SESSIONS_DB_FILE, SESSIONS_DB, (err) => {
         if (err) {
-          console.error("Session database write error:", err.message);
-          res.writeHead(503, { "content-type": "application/json" });
+          res.writeHead(503, {
+            "content-type": "application/json",
+          });
+
           res.end(
             JSON.stringify({
               success: false,
-              message: "error deleting token",
+              message: "error completing process",
             }),
           );
+
           return;
         }
-        res.writeHead(200, { "content-type": "application/json" });
+
+        unauthorizedHandler(res, PUBLIC_DIR);
+      });
+
+      return;
+    }
+
+    //if valid token
+    console.log(`deleting active session for ${SESSIONS_DB[tokenParam].email}`);
+
+    delete SESSIONS_DB[tokenParam];
+
+    writeToDB(SESSIONS_DB_FILE, SESSIONS_DB, (err) => {
+      if (err) {
+        res.writeHead(503, {
+          "content-type": "application/json",
+        });
+
         res.end(
           JSON.stringify({
-            success: true,
-            message: "token termination successful",
+            success: false,
+            message: "error completing process",
           }),
         );
+
         return;
-      },
-    );
+      }
+
+      res.writeHead(200, {
+        "content-type": "application/json",
+      });
+
+      res.end(
+        JSON.stringify({
+          success: true,
+          message: "token termination successful",
+        }),
+      );
+    });
+
     return;
   }
 
@@ -273,14 +326,53 @@ const server = http.createServer((req, res) => {
 
     if (!tokenParam || !SESSIONS_DB[tokenParam]) {
       unauthorizedHandler(res, PUBLIC_DIR);
+      return;
+    }
+
+    const timeElapsed = Date.now() - SESSIONS_DB[tokenParam].createdAt;
+
+    const expiredToken = timeElapsed > SESSION_LIFESPAN;
+
+    if (expiredToken) {
+      delete SESSIONS_DB[tokenParam];
+
+      writeToDB(SESSIONS_DB_FILE, SESSIONS_DB, (err) => {
+        if (err) {
+          res.writeHead(503, {
+            "content-type": "application/json",
+          });
+
+          res.end(
+            JSON.stringify({
+              success: false,
+              message: "error completing process",
+            }),
+          );
+
+          return;
+        }
+
+        unauthorizedHandler(res, PUBLIC_DIR);
+      });
 
       return;
     }
+
     const tokenEmail = SESSIONS_DB[tokenParam].email;
+
     const user = USERS_DB.find((user) => user.email === tokenEmail);
 
-    res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({ success: true, msg: "Data endpoint reached" }));
+    res.writeHead(200, {
+      "content-type": "application/json",
+    });
+
+    res.end(
+      JSON.stringify({
+        success: true,
+        data: user,
+      }),
+    );
+
     return;
   }
 
@@ -298,19 +390,31 @@ const server = http.createServer((req, res) => {
     if (err) {
       if (err.code === "ENOENT") {
         fs.readFile(path.join(PUBLIC_DIR, "404.html"), (err404, file404) => {
-          res.writeHead(404, { "content-type": "text/html" });
+          res.writeHead(404, {
+            "content-type": "text/html",
+          });
+
           res.end(file404, "utf8");
           return;
         });
       } else {
-        res.writeHead(503, { "content-type": "text/html" });
+        res.writeHead(503, {
+          "content-type": "text/html",
+        });
+
         res.end("Internal server error");
       }
+
       return;
     }
+
     //if no error , serve the file
-    res.writeHead(200, { "content-type": contentType });
+    res.writeHead(200, {
+      "content-type": contentType,
+    });
+
     res.end(data, "utf8");
+
     return;
   });
 });
