@@ -2,7 +2,11 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-const { dbLogicPrimer, passwordHash, unauthorizedHandler } = require("./utils/app");
+const {
+  dbLogicPrimer,
+  passwordHash,
+  unauthorizedHandler,
+} = require("./utils/app");
 
 //define global variables:
 let USERS_DB = [];
@@ -136,7 +140,9 @@ const server = http.createServer((req, res) => {
       const parsedData = JSON.parse(body);
       const { email, password } = parsedData;
 
-      const user = USERS_DB.find((user) => user.email === email);
+      const user = USERS_DB.find(
+        (user) => user.email === email.trim().toLowerCase(),
+      );
       //password validation...
       if (user) {
         const isPasswordMatch =
@@ -162,20 +168,30 @@ const server = http.createServer((req, res) => {
           SESSIONS_DB_FILE,
           JSON.stringify(SESSIONS_DB, null, 2),
           (err) => {
-            if (err)
+            if (err) {
               console.error("Session database write error:", err.message);
+              res.writeHead(503, { "content-type": "application/json" });
+              res.end(
+                JSON.stringify({
+                  success: false,
+                  message: "error deleting token",
+                }),
+              );
+              return;
+            }
+
+            res.writeHead(200, { "content-type": "application/json" });
+            res.end(
+              JSON.stringify({
+                success: true,
+                token: token,
+                user: {
+                  name: user.name,
+                  email: user.email,
+                },
+              }),
+            );
           },
-        );
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(
-          JSON.stringify({
-            success: true,
-            token: token,
-            user: {
-              name: user.name,
-              email: user.email,
-            },
-          }),
         );
         return;
       } else {
@@ -194,33 +210,18 @@ const server = http.createServer((req, res) => {
 
   //logout
   if (url.startsWith("/api/logout") && method === "POST") {
+    //receive a token
     const tokenParam = parsedURL.searchParams.get("token");
-   
-    if (SESSIONS_DB[tokenParam]) {
-      console.log(
-        `deleting active session for ${SESSIONS_DB[tokenParam].email}`,
-      );
-      delete SESSIONS_DB[tokenParam];
-      fs.writeFile(
-        SESSIONS_DB_FILE,
-        JSON.stringify(SESSIONS_DB, null, 2),
-        (err) => {
-          if (err) console.error("Session database write error:", err.message);
-        },
-      );
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(
-        JSON.stringify({
-          success: true,
-          message: "scaffolding complete",
-        }),
-      );
+
+    //if token does not exist:
+    if (!SESSIONS_DB[tokenParam]) {
+      unauthorizedHandler(res, PUBLIC_DIR);
       return;
     }
+    //checking if token is passed its lifespan
     const timeElapsed = Date.now() - SESSIONS_DB[tokenParam].createdAt;
-    console.log(timeElapsed);
 
-
+    //if invalid token...
     if (timeElapsed > SESSION_LIFESPAN) {
       delete SESSIONS_DB[tokenParam];
       fs.writeFile(
@@ -233,19 +234,50 @@ const server = http.createServer((req, res) => {
       unauthorizedHandler(res, PUBLIC_DIR);
       return;
     }
+    //if valid token
+
+    console.log(`deleting active session for ${SESSIONS_DB[tokenParam].email}`);
+
+    delete SESSIONS_DB[tokenParam];
+    fs.writeFile(
+      SESSIONS_DB_FILE,
+      JSON.stringify(SESSIONS_DB, null, 2),
+      (err) => {
+        if (err) {
+          console.error("Session database write error:", err.message);
+          res.writeHead(503, { "content-type": "application/json" });
+          res.end(
+            JSON.stringify({
+              success: false,
+              message: "error deleting token",
+            }),
+          );
+          return;
+        }
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(
+          JSON.stringify({
+            success: true,
+            message: "token termination successful",
+          }),
+        );
+        return;
+      },
+    );
+    return;
   }
 
   //get specific user
-  if(url.startsWith('/api/user/profile') && method === 'GET') {
-    const tokenParam = parsedURL.searchParams.get('token');
+  if (url.startsWith("/api/user/profile") && method === "GET") {
+    const tokenParam = parsedURL.searchParams.get("token");
 
-    if(!tokenParam || !SESSIONS_DB[tokenParam]) {
+    if (!tokenParam || !SESSIONS_DB[tokenParam]) {
       unauthorizedHandler(res, PUBLIC_DIR);
 
       return;
     }
     const tokenEmail = SESSIONS_DB[tokenParam].email;
-    const user = USERS_DB.find(user => user.email === tokenEmail);
+    const user = USERS_DB.find((user) => user.email === tokenEmail);
 
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ success: true, msg: "Data endpoint reached" }));
@@ -256,7 +288,6 @@ const server = http.createServer((req, res) => {
     const tokenParam = parsedURL.searchParams.get("token");
 
     if (!tokenParam || !SESSIONS_DB[tokenParam]) {
-      
       unauthorizedHandler(res, PUBLIC_DIR);
       return;
     }
