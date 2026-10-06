@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Log in</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-page="login">
+  <div class="shell">
+    <aside class="brand-panel">
+      <a class="wordmark" href="login.html">ZeelTech</a>
+      <div>
+        <p class="brand-headline">Welcome back.</p>
+        <p class="brand-sub">Log in to pick up where you left off.</p>
+      </div>
+    </aside>
+
+    <main class="form-panel">
+      <div class="form-wrap">
+        <h1>Log in</h1>
+        <p class="lede">Use the email and password you signed up with.</p>
+
+        <p class="notice" id="notice" role="status" hidden></p>
+
+        <form id="login-form" data-form="login" novalidate>
+          <p class="form-error" id="form-error" role="alert" hidden></p>
+
+          <div class="field">
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" autocomplete="email" required>
+            <p class="field-error" id="email-error"></p>
+          </div>
+
+          <div class="field">
+            <label for="password">Password</label>
+            <div class="password-row">
+              <input id="password" name="password" type="password" autocomplete="current-password" required>
+              <button type="button" class="toggle" data-toggle-password="password" aria-controls="password">Show</button>
+            </div>
+            <p class="field-error" id="password-error"></p>
+          </div>
+
+          <button type="submit" class="btn">Log in</button>
+        </form>
+
+        <p class="switch">New here? <a href="signup.html">Create an account</a></p>
+      </div>
+    </main>
+  </div>
+  <script src="auth.js" defer></script>
+  <script src="ui.js"></script>
+</body>
+</html>

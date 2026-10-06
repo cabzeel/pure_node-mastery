@@ -1,0 +1,4 @@
+[Step 1: Receive Form Data] 
+──>[Step 2: Stream & Parse Body] 
+──> [Step 3: Secure Hashing] 
+──> [Step 4: Array Storage & Sessions]

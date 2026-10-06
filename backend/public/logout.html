@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Log out</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-page="logout">
+  <div class="shell">
+    <aside class="brand-panel">
+      <a class="wordmark" href="login.html">ZeelTech</a>
+      <div>
+        <p class="brand-headline">See you soon.</p>
+      </div>
+    </aside>
+
+    <main class="form-panel">
+      <div class="form-wrap stack">
+        <h1 id="logout-title">Logging you out…</h1>
+        <p class="status-line" id="logout-status" role="status">Ending your session.</p>
+        <a class="btn" id="logout-login-link" href="login.html" hidden>Log in again</a>
+      </div>
+    </main>
+  </div>
+  <script src="auth.js" defer></script>
+  <script src="ui.js"></script>
+</body>
+</html>

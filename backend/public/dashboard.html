@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-page="dashboard" data-protected>
+  <div class="shell">
+    <aside class="brand-panel">
+      <a class="wordmark" href="dashboard.html">ZeelTech</a>
+      <div>
+        <p class="brand-headline" id="greeting">Hello.</p>
+      </div>
+    </aside>
+
+    <main class="form-panel">
+      <div class="form-wrap stack">
+        <h1>Dashboard</h1>
+        <p class="status-line">You are logged in as <strong id="user-email">…</strong>.</p>
+        <p class="status-line">Replace this page with your own dashboard content.</p>
+        <a href="#" class="btn btn-outline logout-btn">Log out</a>
+      </div>
+    </main>
+  </div>
+  <script src="auth.js" defer></script>
+  <script src="ui.js"></script>
+</body>
+</html>
