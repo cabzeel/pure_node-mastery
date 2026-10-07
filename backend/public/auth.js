@@ -102,7 +102,7 @@ if (form) {
             form.reset();
             setLoading(form, false);
             
-            if (result.token) {
+            if (result.user.token) {
                 window.location.assign(`dashboard.html?token=${result.token}`);
             } else {
                 window.location.assign('login.html?registered=1');

@@ -1,424 +1,144 @@
-const http = require("http");
-const fs = require("fs");
-const path = require("path");
-const crypto = require("crypto");
-const {
-  dbLogicPrimer,
-  passwordHash,
-  unauthorizedHandler,
-  writeToDB,
-} = require("./utils/app");
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+const { dbLogicPrimer, clearDatabase, passwordHash, writeToDB } = require('./utils/app');
 
-//define global variables:
-let USERS_DB = [];
-let SESSIONS_DB = {};
+//declare global variables...
 const PORT = 3000;
-const USERS_DB_FILE = path.join(__dirname, "db", "users.json");
-const SESSIONS_DB_FILE = path.join(__dirname, "db", "sessions.json");
+const PUBLIC_DIR = path.join(__dirname, 'public');
+const USERS_DB = [];
+const SESSIONS_DB = {};
+const USERS_DB_FILE = path.join(__dirname, 'db', 'users.json');
+const SESSIONS_DB_FILE = path.join(__dirname, 'db', 'sessions.json');
 const SESSION_LIFESPAN = 15 * 60 * 1000;
 
-//load from databases
-dbLogicPrimer(USERS_DB, USERS_DB_FILE);
+
+// load databases:
+dbLogicPrimer(USERS_DB, USERS_DB_FILE)
 dbLogicPrimer(SESSIONS_DB, SESSIONS_DB_FILE);
 
-//mime types
-const MIME_TYPES = {
-  ".js": "application/js",
-  ".html": "text/html",
-  ".css": "text/css",
-  ".json": "application/json",
-  ".png": "image/png",
-  ".jpg": "image/JPEG",
-};
 
-//public directory..
-const PUBLIC_DIR = path.join(__dirname, "public");
+//mime types:
+const MIME_TYPES = {
+  '.js': 'application/javascript',
+  '.json': 'application/json',
+  '.html': 'text/html',
+  '.css': 'text/css',
+  '.jpg': 'image/JPEG'
+}
 
 const server = http.createServer((req, res) => {
-  //handle serving...
-  const { url, method } = req;
+  const {url, method} = req;
+  const fileName = url === '/' ? 'signup.html' : url;
+  //filepath
+  const filePath = path.join(PUBLIC_DIR, fileName)
+  //setting mime type:
+  const ext = path.extname(fileName);
+  const contentType  = MIME_TYPES[ext] || 'application/octet';
 
-  //parsed url:
-  const parsedURL = new URL(url, "http://localhost:3000");
-  const pathName = parsedURL.pathname;
+  //sign up functionality:
+  if(url === '/api/signup' && method === 'POST') {
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk;
+    })
 
-  //get file name
-  const filename = pathName === "/" ? "signup.html" : pathName;
+    req.on('end', async() => {
+      const parsedData = JSON.parse(body);
+      //check if user already exists...
+      const incomingEmail = parsedData.email.trim().toLowerCase();
+      const isExisting = USERS_DB.find(user => user.email === incomingEmail);
 
-  //get filepath
-  const filepath = path.join(PUBLIC_DIR, filename);
-
-  //get file extension
-  const ext = path.extname(filepath);
-
-  //content type
-  const contentType = MIME_TYPES[ext] || "application/octet";
-
-  //sign up
-  if (url === "/api/signup" && method === "POST") {
-    let body = "";
-
-    //check for data streams:
-    req.on("data", (chunk) => {
-      body += chunk.toString();
-    });
-
-    //req on end
-    req.on("end", async () => {
-      try {
-        const parsedData = JSON.parse(body);
-        const salt = crypto.randomBytes(16).toString("hex");
-        const hashedPassword = await passwordHash(parsedData.password, salt);
-
-        const incomingEmail = parsedData.email.toLowerCase().trim();
-
-        const emailExists = USERS_DB.some(
-          (user) => user.email.toLowerCase().trim() === incomingEmail,
-        );
-
-        if (emailExists) {
-          res.writeHead(409, { "content-type": "application/json" });
-          res.end(
-            JSON.stringify({
-              success: false,
-              errors: {
-                email: "user already exists",
-              },
-            }),
-          );
-          return;
+      if(isExisting) {
+        res.writeHead(409, {"content-type": 'application/json'});
+        res.end(JSON.stringify({
+          success: false, message: 'error: user already exists'
+        }))
+        return;
+      }
+      //hash password and create new user
+      const salt = crypto.randomBytes(16).toString('hex');
+      const hashedPassword = await passwordHash(parsedData.password, salt);
+      const id = crypto.randomUUID();
+      //create new user object...
+      const newUser = {
+        id : id,
+        name: parsedData.name,
+        password: hashedPassword,
+        email: incomingEmail,
+        salt: salt
+      }
+      //save user to db
+      USERS_DB.push(newUser);
+      //write user to db file
+      writeToDB(USERS_DB_FILE, USERS_DB, (err) => {
+        if(err) {
+          res.writeHead(500, {"content-type": 'application/json'});
+          return res.end(JSON.stringify({success: false, message: err.message}));
         }
-
-        const userID = crypto.randomUUID();
-
-        const newUser = {
-          id: userID,
-          name: parsedData.name,
-          email: parsedData.email,
-          password: hashedPassword,
-          salt: salt,
-        };
-
-        USERS_DB.push(newUser);
-
-        fs.writeFile(
-          USERS_DB_FILE,
-          JSON.stringify(USERS_DB, null, 2),
-          (err) => {
-            console.log("data written successfully");
-          },
-        );
-
-        const token = crypto.randomBytes(32).toString("hex");
-
+        //create token:
+        const token = crypto.randomBytes(32).toString('hex');
         SESSIONS_DB[token] = {
           email: newUser.email,
-          createdAt: Date.now(),
-        };
-
-        //write token to storage...
-        fs.writeFile(
-          SESSIONS_DB_FILE,
-          JSON.stringify(SESSIONS_DB, null, 2),
-          (err) => {
-            if (err)
-              console.error("Session database write error:", err.message);
-          },
-        );
-
-        res.writeHead(200, { "content-type": "application/json" });
-
-        res.end(
-          JSON.stringify({
-            success: true,
-            token: token,
-            user: {
-              name: newUser.name,
-              email: newUser.email,
-            },
-          }),
-        );
-      } catch (error) {
-        console.error(error);
-      }
-    });
-
-    return;
-  }
-
-  //sign in || login
-  if (url === "/api/login" && method === "POST") {
-    let body = "";
-
-    console.log(url);
-
-    req.on("data", (chunk) => {
-      body += chunk;
-    });
-
-    req.on("end", async () => {
-      const parsedData = JSON.parse(body);
-      const { email, password } = parsedData;
-
-      const user = USERS_DB.find(
-        (user) => user.email === email.trim().toLowerCase(),
-      );
-
-      //password validation...
-      if (user) {
-        const isPasswordMatch =
-          (await passwordHash(password, user.salt)) === user.password;
-
-        if (!isPasswordMatch) {
-          res.writeHead(401, {
-            "content-type": "application/json",
-          });
-
-          res.end(
-            JSON.stringify({
-              success: false,
-              msg: "Invalid password",
-            }),
-          );
-
-          return;
+          createdAt: Date.now()
         }
-
-        const token = crypto.randomBytes(32).toString("hex");
-
-        SESSIONS_DB[token] = {
-          email: email,
-          createdAt: Date.now(),
-        };
-
-        //write token to storage...
+        //write token to db file
         writeToDB(SESSIONS_DB_FILE, SESSIONS_DB, (err) => {
-          if (err) {
-            res.writeHead(503, {
-              "content-type": "application/json",
-            });
-
-            res.end(
-              JSON.stringify({
-                success: false,
-                message: "error completing process",
-              }),
-            );
-
-            return;
+          if(err) {
+            res.writeHead(500, {"content-type": 'application/json'});
+            return res.end(JSON.stringify({success: false, message: err.message}));
           }
 
-          res.writeHead(200, {
-            "content-type": "application/json",
-          });
+          res.writeHead(200, {"content-type": 'applicaiton/json'});
+          return res.end(JSON.stringify({success: true, user: {
+            name: newUser.name,
+            email: newUser.email,
+            token: token
+          }}));
+        })
+      })
+    })
+    return;
+  }
 
-          res.end(
-            JSON.stringify({
-              success: true,
-              token: token,
-              user: {
-                name: user.name,
-                email: user.email,
-              },
-            }),
-          );
-        });
+  //login functionality...
+  if(url.startsWith('/api/login') && method === 'POST') {
+    //extract token from
+  }
 
+
+//server file serving functionality
+  fs.readFile(filePath, (err, file) => {
+    if(err) {
+      if(err.code === 'ENOENT') {
+        fs.readFile(path.join(PUBLIC_DIR, '404.html'), (err404, file404) => {
+          if(err404) {
+            res.writeHead(500, {"content-type": 'application/json'});
+            res.end(JSON.stringify({
+              success: false, msg: 'resource does not exist on server'
+            }));
+            return;
+          }
+          res.writeHead(404, {"content-type": contentType});
+          res.end(file404, 'utf8');
+          return;
+        })
         return;
       } else {
-        res.writeHead(401, {
-          "content-type": "application/json",
-        });
-
-        res.end(
-          JSON.stringify({
-            success: false,
-            msg: "user does not exist",
-          }),
-        );
-
+        res.writeHead(500, {"content-type": 'application/json'});
+        res.end(JSON.stringify({
+          success: false,
+          message: 'Sorry, an internal server error ocurred'
+        }));
         return;
       }
-    });
-
-    return;
-  }
-
-  //logout
-  if (url.startsWith("/api/logout") && method === "POST") {
-    //receive a token
-    const tokenParam = parsedURL.searchParams.get("token");
-
-    //if token does not exist:
-    if (!SESSIONS_DB[tokenParam]) {
-      unauthorizedHandler(res, PUBLIC_DIR);
-      return;
     }
 
-    //checking if token is passed its lifespan
-    const timeElapsed = Date.now() - SESSIONS_DB[tokenParam].createdAt;
+    res.writeHead(200, {"content-type": contentType});
+    res.end(file, 'utf8')
+  })
 
-    //if invalid token...
-    if (timeElapsed > SESSION_LIFESPAN) {
-      delete SESSIONS_DB[tokenParam];
+})
 
-      writeToDB(SESSIONS_DB_FILE, SESSIONS_DB, (err) => {
-        if (err) {
-          res.writeHead(503, {
-            "content-type": "application/json",
-          });
-
-          res.end(
-            JSON.stringify({
-              success: false,
-              message: "error completing process",
-            }),
-          );
-
-          return;
-        }
-
-        unauthorizedHandler(res, PUBLIC_DIR);
-      });
-
-      return;
-    }
-
-    //if valid token
-    console.log(`deleting active session for ${SESSIONS_DB[tokenParam].email}`);
-
-    delete SESSIONS_DB[tokenParam];
-
-    writeToDB(SESSIONS_DB_FILE, SESSIONS_DB, (err) => {
-      if (err) {
-        res.writeHead(503, {
-          "content-type": "application/json",
-        });
-
-        res.end(
-          JSON.stringify({
-            success: false,
-            message: "error completing process",
-          }),
-        );
-
-        return;
-      }
-
-      res.writeHead(200, {
-        "content-type": "application/json",
-      });
-
-      res.end(
-        JSON.stringify({
-          success: true,
-          message: "token termination successful",
-        }),
-      );
-    });
-
-    return;
-  }
-
-  //get specific user
-  if (url.startsWith("/api/user/profile") && method === "GET") {
-    const tokenParam = parsedURL.searchParams.get("token");
-
-    if (!tokenParam || !SESSIONS_DB[tokenParam]) {
-      unauthorizedHandler(res, PUBLIC_DIR);
-      return;
-    }
-
-    const timeElapsed = Date.now() - SESSIONS_DB[tokenParam].createdAt;
-
-    const expiredToken = timeElapsed > SESSION_LIFESPAN;
-
-    if (expiredToken) {
-      delete SESSIONS_DB[tokenParam];
-
-      writeToDB(SESSIONS_DB_FILE, SESSIONS_DB, (err) => {
-        if (err) {
-          res.writeHead(503, {
-            "content-type": "application/json",
-          });
-
-          res.end(
-            JSON.stringify({
-              success: false,
-              message: "error completing process",
-            }),
-          );
-
-          return;
-        }
-
-        unauthorizedHandler(res, PUBLIC_DIR);
-      });
-
-      return;
-    }
-
-    const tokenEmail = SESSIONS_DB[tokenParam].email;
-
-    const user = USERS_DB.find((user) => user.email === tokenEmail);
-
-    res.writeHead(200, {
-      "content-type": "application/json",
-    });
-
-    res.end(
-      JSON.stringify({
-        success: true,
-        data: user,
-      }),
-    );
-
-    return;
-  }
-
-  if (pathName === "/dashboard.html") {
-    const tokenParam = parsedURL.searchParams.get("token");
-
-    if (!tokenParam || !SESSIONS_DB[tokenParam]) {
-      unauthorizedHandler(res, PUBLIC_DIR);
-      return;
-    }
-  }
-
-  //when a file is requested
-  fs.readFile(filepath, (err, data) => {
-    if (err) {
-      if (err.code === "ENOENT") {
-        fs.readFile(path.join(PUBLIC_DIR, "404.html"), (err404, file404) => {
-          res.writeHead(404, {
-            "content-type": "text/html",
-          });
-
-          res.end(file404, "utf8");
-          return;
-        });
-      } else {
-        res.writeHead(503, {
-          "content-type": "text/html",
-        });
-
-        res.end("Internal server error");
-      }
-
-      return;
-    }
-
-    //if no error , serve the file
-    res.writeHead(200, {
-      "content-type": contentType,
-    });
-
-    res.end(data, "utf8");
-
-    return;
-  });
-});
-
-server.listen(PORT, () =>
-  console.log(`server running at http://localhost:${PORT}`),
-);
+server.listen(3000, ()=> console.log(`server running at http://localhost:${PORT}`));
