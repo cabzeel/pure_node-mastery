@@ -2,7 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { dbLogicPrimer, clearDatabase, passwordHash, writeToDB } = require('./utils/app');
+const { dbLogicPrimer, clearDatabase, passwordHash, writeToDB, unauthorizedHandler } = require('./utils/app');
 
 //declare global variables...
 const PORT = 3000;
@@ -30,6 +30,7 @@ const MIME_TYPES = {
 
 const server = http.createServer((req, res) => {
   const {url, method} = req;
+  const parsedURL = new URL(url, 'http://localhost:3000');
   const fileName = url === '/' ? 'signup.html' : url;
   //filepath
   const filePath = path.join(PUBLIC_DIR, fileName)
@@ -102,9 +103,51 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  //login functionality...
+  //login functionality..
   if(url.startsWith('/api/login') && method === 'POST') {
     //extract token from
+  }
+
+  //protected routes functionality:currently, we have only dashboard so I will do that....
+  if(parsedURL.pathname.toLocaleLowerCase() === '/dashboard.html'){
+    const tokenParam = parsedURL.searchParams.get('token');
+    //if there is no token:
+    if(!tokenParam) {
+      unauthorizedHandler(res, PUBLIC_DIR);
+      return
+    }
+    //if token does not exist in db
+    if(!SESSIONS_DB[tokenParam]){
+      unauthorizedHandler(res, PUBLIC_DIR);
+      return;
+    }
+    //if token has expired...
+    const ELAPSED_TIME = Date.now() - SESSIONS_DB[tokenParam].createdAt;
+    const isExpiredToken = ELAPSED_TIME > SESSION_LIFESPAN;
+
+    if(isExpiredToken) {
+      delete SESSIONS_DB[tokenParam];
+      writeToDB(SESSIONS_DB_FILE, SESSIONS_DB, (err) => {
+        if(err) {
+          res.writeHead(500, {"content-type": 'application/json'});
+          return res.end(JSON.stringify({success: false, message: err.message}));
+        }
+        unauthorizedHandler(res, PUBLIC_DIR);
+        return;
+      })
+      return;
+    }
+    fs.readFile(path.join(PUBLIC_DIR, 'dashboard.html'), (err, dashboard) => {
+      if(err) {
+        res.writeHead(500, {"content-type": 'application/json'});
+        return res.end(JSON.stringify({success: false, message: err.message}))
+      }
+
+      res.writeHead(200, {"content-type": 'text/html'});
+      return res.end(dashboard, 'utf-8');
+
+    })
+    return;
   }
 
 
