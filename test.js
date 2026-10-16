@@ -1,3 +1,5 @@
+const { AuthenticateToken } = require("./backend/utils/app");
+
 const nameDB = {
     SomethingRandom: {
         realname: 'something',
@@ -35,3 +37,4 @@ for([name] of Object.entries(nameDB)) {
 if(!containsName) {
     console.log('sorry, name does not exist in DB')
 }
+

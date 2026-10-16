@@ -49,12 +49,16 @@ function unauthorizedHandler(res, public_dir) {
   res.writeHead(401, { "content-type": "text/html" });
   fs.readFile(path.join(public_dir, "401.html"), (err401, file401) => {
     if (err401) {
-      console.error("401.html file not found on disk");
+      if (err401.code === ENOENT) {
+        console.error("401.html file not found on disk");
 
-      res.end(
-        "<h1>401 Unauthorized</h1><p>Please register an account or log in to view this private page.</p>",
-      );
-      return;
+        return res.end(
+          "<h1>401 Unauthorized</h1><p>Please register an account or log in to view this private page.</p>",
+        );
+      } else {
+        res.writeHead(401, {'content-type': 'application/json'})
+        res.end(JSON.stringify({success: false, message: err401.message}))
+      }
     }
     res.end(file401, "utf8");
   });
@@ -97,14 +101,19 @@ function clearExpiredTokens(db, db_file, session_lifespan) {
 function AuthenticateToken(res, token) {
   if (!token) {
     unauthorizedHandler(res, PUBLIC_DIR);
-    return;
+    return false;
   }
 
   if (!SESSIONS_DB[token]) {
     unauthorizedHandler(res, PUBLIC_DIR);
-    return;
+    return false;
   }
-  return;
+  return true;
+}
+
+function missingParamsHandler(res) {
+  res.writeHead(400, {'content-type': 'application/json'});
+  return res.end(JSON.stringify({success: false, message: 'missing required arguments'}))
 }
 
 module.exports = {
@@ -114,5 +123,6 @@ module.exports = {
   unauthorizedHandler,
   writeToDB,
   clearExpiredTokens,
-  AuthenticateToken
+  AuthenticateToken,
+  missingParamsHandler
 };
