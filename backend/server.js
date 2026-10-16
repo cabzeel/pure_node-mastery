@@ -2,22 +2,22 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { dbLogicPrimer, clearDatabase, passwordHash, writeToDB, unauthorizedHandler } = require('./utils/app');
+const { dbLogicPrimer, clearDatabase, passwordHash, writeToDB, unauthorizedHandler, clearExpiredTokens, AuthenticateToken } = require('./utils/app');
+const { USERS_DB, SESSIONS_DB, USERS_DB_FILE, SESSIONS_DB_FILE, SESSION_LIFESPAN, PUBLIC_DIR, PORT } = require('./utils/state');
 
-//declare global variables...
-const PORT = 3000;
-const PUBLIC_DIR = path.join(__dirname, 'public');
-const USERS_DB = [];
-const SESSIONS_DB = {};
-const USERS_DB_FILE = path.join(__dirname, 'db', 'users.json');
-const SESSIONS_DB_FILE = path.join(__dirname, 'db', 'sessions.json');
-const SESSION_LIFESPAN = 15 * 60 * 1000;
+
+
 
 
 // load databases:
 dbLogicPrimer(USERS_DB, USERS_DB_FILE)
 dbLogicPrimer(SESSIONS_DB, SESSIONS_DB_FILE);
 
+//delete expired tokens
+
+setInterval(()=> {
+  clearExpiredTokens(SESSIONS_DB, SESSIONS_DB_FILE, SESSION_LIFESPAN);
+}, SESSION_LIFESPAN)
 
 //mime types:
 const MIME_TYPES = {
@@ -91,7 +91,7 @@ const server = http.createServer((req, res) => {
             return res.end(JSON.stringify({success: false, message: err.message}));
           }
 
-          res.writeHead(200, {"content-type": 'applicaiton/json'});
+          res.writeHead(200, {"content-type": 'application/json'});
           return res.end(JSON.stringify({success: true, user: {
             name: newUser.name,
             email: newUser.email,
@@ -104,23 +104,94 @@ const server = http.createServer((req, res) => {
   }
 
   //login functionality..
-  if(url.startsWith('/api/login') && method === 'POST') {
-    //extract token from
+  if(url === '/api/login' && method === 'POST') {
+    //receive incoming data:
+    let body = ''
+    req.on('data', (chunk) => {
+      body += chunk;
+    });
+
+    req.on('end', async() => {
+      try {
+        const parsedData = JSON.parse(body);
+        const {email, password} = parsedData;
+
+        const incomingEmail = email;
+        //verify if email exists in db:
+        const user = USERS_DB.find(user => user.email === incomingEmail.trim().toLowerCase());
+        if(!user) {
+          res.writeHead(401, {"content-type": 'application/json'});
+          return res.end(JSON.stringify({success: false, message: 'user does not exist'}));
+        }
+        //verify password match
+        const hashedPassword = await passwordHash(password, user.salt);
+        if(hashedPassword != user.password) {
+          res.writeHead(401, {"content-type": 'application/json'});
+          return res.end(JSON.stringify({success: false, message: 'invalid password, please try again'}));
+        }
+        //at this point, user exists and password is a match...create login token...but verify if an active token exists for that user...
+        let activeToken = null;
+        for(const [token, {email, createdAt}] of Object.entries(SESSIONS_DB)) {
+          const isValid = (Date.now() - createdAt) < SESSION_LIFESPAN;
+          if(email === user.email && isValid) {
+            activeToken = token;
+            break;
+          }
+        }
+        if(activeToken) {
+          res.writeHead(200, {"content-type": 'application/json'});
+          return res.end(JSON.stringify({success: true, token:activeToken, user: {name: user.name, email: user.email}}));
+          
+        }
+        //if missing active token
+  
+          const token = crypto.randomBytes(32).toString('hex');
+          SESSIONS_DB[token] = {
+            email: user.email,
+            createdAt: Date.now()
+          }
+          //write token to DB and send to user
+          writeToDB(SESSIONS_DB_FILE, SESSIONS_DB, (err) => {
+            if(err) {
+              res.writeHead(500, {"content-type": 'application/json'});
+              return res.end(JSON.stringify({success: false, message: err.message}));
+            }
+
+            res.writeHead(200, {"content-type": 'application/json'});
+            return res.end(JSON.stringify({success: true, token, user: {name: user.name, email: user.email}}));
+          })
+        return;
+      } catch (error) {
+        res.writeHead(500, {"content-type": 'application/json'});
+        return res.end(JSON.stringify({success: false, message: error.message}));
+      }
+    })
+    return;
+  }
+
+  //logout functionality
+  if(url.startsWith('/api/logout') && method === 'POST') {
+    const tokenParam = parsedURL.searchParams.get('token');
+    //if invalid token
+    AuthenticateToken(res, tokenParam);
+    //delete token from database..
+    delete SESSIONS_DB[tokenParam];
+    writeToDB(SESSIONS_DB_FILE, SESSIONS_DB, (err) => {
+      if(err){
+        res.writeHead(500, {"content-type": 'application/json'});
+        return res.end(JSON.stringify({success: false, message: err.message}));
+      }
+      res.writeHead(200, {"content-type": 'application/json'});
+      return res.end(JSON.stringify({success: true, message: 'data received successfully'}))
+    })
+    return;
   }
 
   //protected routes functionality:currently, we have only dashboard so I will do that....
   if(parsedURL.pathname.toLocaleLowerCase() === '/dashboard.html'){
     const tokenParam = parsedURL.searchParams.get('token');
     //if there is no token:
-    if(!tokenParam) {
-      unauthorizedHandler(res, PUBLIC_DIR);
-      return
-    }
-    //if token does not exist in db
-    if(!SESSIONS_DB[tokenParam]){
-      unauthorizedHandler(res, PUBLIC_DIR);
-      return;
-    }
+    AuthenticateToken(res, tokenParam);
     //if token has expired...
     const ELAPSED_TIME = Date.now() - SESSIONS_DB[tokenParam].createdAt;
     const isExpiredToken = ELAPSED_TIME > SESSION_LIFESPAN;
@@ -184,4 +255,4 @@ const server = http.createServer((req, res) => {
 
 })
 
-server.listen(3000, ()=> console.log(`server running at http://localhost:${PORT}`));
+server.listen(PORT, ()=> console.log(`server running at http://localhost:${PORT}`));

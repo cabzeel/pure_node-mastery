@@ -160,7 +160,7 @@ if (loginForm) {
       loginForm.reset();
       setLoading(loginForm, false);
 
-      window.location.assign(`dashboard.html?token=${result.user.token}`);
+      window.location.assign(`dashboard.html?token=${result.token}`);
     } catch (networkError) {
       console.error("Login connection transaction failed:", networkError);
       showFormError(

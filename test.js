@@ -1,4 +1,8 @@
 const nameDB = {
+    SomethingRandom: {
+        realname: 'something',
+        position: 'invalid'
+    },
     cabzeel: {
         realname: true,
         position: 'middle name'
@@ -19,4 +23,15 @@ const nameDB = {
 
 const someName = 'timchia';
 
-console.log(nameDB[someName].position)
+let containsName = null;
+
+for([name] of Object.entries(nameDB)) {
+    if(name === 'Peter') {
+        containsName = true;
+        
+    }
+}
+
+if(!containsName) {
+    console.log('sorry, name does not exist in DB')
+}

@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { promisify } = require("util");
+const { PUBLIC_DIR, SESSIONS_DB } = require("./state");
 
 const scrypt = promisify(crypto.scrypt);
 
@@ -71,10 +72,47 @@ function writeToDB(db_file, db, callback) {
   });
 }
 
+function clearExpiredTokens(db, db_file, session_lifespan) {
+  let count = 0;
+  for (const [token, { createdAt }] of Object.entries(db)) {
+    const isExpired = Date.now() - createdAt > session_lifespan;
+    if (isExpired) {
+      delete db[token];
+      count++;
+    }
+  }
+  if (count === 0) {
+    console.log("no expired tokens");
+  } else {
+    writeToDB(db_file, db, (err) => {
+      if (err) {
+        console.log(err);
+        return;
+      }
+      console.log(`${count} tokens deleted successfully`);
+    });
+  }
+}
+
+function AuthenticateToken(res, token) {
+  if (!token) {
+    unauthorizedHandler(res, PUBLIC_DIR);
+    return;
+  }
+
+  if (!SESSIONS_DB[token]) {
+    unauthorizedHandler(res, PUBLIC_DIR);
+    return;
+  }
+  return;
+}
+
 module.exports = {
   dbLogicPrimer,
   clearDatabase,
   passwordHash,
   unauthorizedHandler,
   writeToDB,
+  clearExpiredTokens,
+  AuthenticateToken
 };
