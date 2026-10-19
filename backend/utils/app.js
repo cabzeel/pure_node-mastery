@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { promisify } = require("util");
-const { PUBLIC_DIR, SESSIONS_DB } = require("./state");
+const { PUBLIC_DIR, SESSIONS_DB, MAX_BYTE_SIZE } = require("./state");
 
 const scrypt = promisify(crypto.scrypt);
 
@@ -56,8 +56,8 @@ function unauthorizedHandler(res, public_dir) {
           "<h1>401 Unauthorized</h1><p>Please register an account or log in to view this private page.</p>",
         );
       } else {
-        res.writeHead(401, {'content-type': 'application/json'})
-        res.end(JSON.stringify({success: false, message: err401.message}))
+        res.writeHead(401, { "content-type": "application/json" });
+        res.end(JSON.stringify({ success: false, message: err401.message }));
       }
     }
     res.end(file401, "utf8");
@@ -112,10 +112,19 @@ function AuthenticateToken(res, token) {
 }
 
 function missingParamsHandler(res) {
-  res.writeHead(400, {'content-type': 'application/json'});
-  return res.end(JSON.stringify({success: false, message: 'missing required arguments'}))
+  res.writeHead(400, { "content-type": "application/json" });
+  return res.end(
+    JSON.stringify({ success: false, message: "missing required arguments" }),
+  );
 }
 
+function byteSizeHandler(req, res) {
+  res.writeHead(413, { "content-type": "application/json" });
+  res.end(JSON.stringify({ success: false, message: "payload too large" }));
+  req.destroy();
+}
+
+function contentTy
 module.exports = {
   dbLogicPrimer,
   clearDatabase,
@@ -124,5 +133,6 @@ module.exports = {
   writeToDB,
   clearExpiredTokens,
   AuthenticateToken,
-  missingParamsHandler
+  missingParamsHandler,
+  byteSizeHandler,
 };

@@ -15,9 +15,9 @@ const MIME_TYPES = {
   '.jpg': 'image/JPEG'
 }
 
-//declare global variables...
 const PORT = 3000;
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+const MAX_BYTE_SIZE = 1024 * 10;
 module.exports = {
     USERS_DB,
     SESSIONS_DB,
@@ -26,5 +26,6 @@ module.exports = {
     SESSION_LIFESPAN,
     PORT,
     PUBLIC_DIR,
-    MIME_TYPES
+    MIME_TYPES,
+    MAX_BYTE_SIZE
 }
