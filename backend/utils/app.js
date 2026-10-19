@@ -121,10 +121,13 @@ function missingParamsHandler(res) {
 function byteSizeHandler(req, res) {
   res.writeHead(413, { "content-type": "application/json" });
   res.end(JSON.stringify({ success: false, message: "payload too large" }));
-  req.destroy();
+  res.on('finish', ()=> req.destroy());
 }
 
-function contentTy
+function contentTypeGuard(res) {
+  res.writeHead(415, {'content-type' : 'application/json'});
+  return res.end(JSON.stringify({success: false, message: 'unexpected content type'}))
+}
 module.exports = {
   dbLogicPrimer,
   clearDatabase,
@@ -135,4 +138,5 @@ module.exports = {
   AuthenticateToken,
   missingParamsHandler,
   byteSizeHandler,
+  contentTypeGuard
 };

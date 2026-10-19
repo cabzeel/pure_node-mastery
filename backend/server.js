@@ -12,6 +12,7 @@ const {
   AuthenticateToken,
   missingParamsHandler,
   byteSizeHandler,
+  contentTypeGuard,
 } = require("./utils/app");
 const {
   USERS_DB,
@@ -46,12 +47,23 @@ const server = http.createServer((req, res) => {
   //setting mime type:
   const ext = path.extname(fileName);
   const contentType = MIME_TYPES[ext] || "application/octet";
+  console.log(req.headers["content-type"]);
 
-  if(url.startsWith('/api')){  //sign up functionality:
+  if (url.startsWith("/api")) {
+    //sign up functionality:
+
     if (url === "/api/signup") {
+      //method guard
       if (method !== "POST") {
         res.writeHead(405, { "content-type": "application/json" });
-        return res.end(JSON.stringify({ success: false, message: "Method Not Allowed" }));
+        return res.end(
+          JSON.stringify({ success: false, message: "Method Not Allowed" }),
+        );
+      }
+      //content type guard
+      if (req.headers["content-type"] !== "application/json") {
+        contentTypeGuard(res);
+        return;
       }
 
       let body = "";
@@ -170,7 +182,14 @@ const server = http.createServer((req, res) => {
     if (url === "/api/login") {
       if (method !== "POST") {
         res.writeHead(405, { "content-type": "application/json" });
-        return res.end(JSON.stringify({ success: false, message: "Method Not Allowed" }));
+        return res.end(
+          JSON.stringify({ success: false, message: "Method Not Allowed" }),
+        );
+      }
+      //content type guard
+      if (req.headers["content-type"] !== "application/json") {
+        contentTypeGuard(res);
+        return;
       }
 
       //receive incoming data:
@@ -207,7 +226,10 @@ const server = http.createServer((req, res) => {
           if (!user) {
             res.writeHead(401, { "content-type": "application/json" });
             return res.end(
-              JSON.stringify({ success: false, message: "user does not exist" }),
+              JSON.stringify({
+                success: false,
+                message: "user does not exist",
+              }),
             );
           }
           //verify password match
@@ -285,12 +307,16 @@ const server = http.createServer((req, res) => {
     if (url.startsWith("/api/logout")) {
       if (method !== "POST") {
         res.writeHead(405, { "content-type": "application/json" });
-        return res.end(JSON.stringify({ success: false, message: "Method Not Allowed" }));
+        return res.end(
+          JSON.stringify({ success: false, message: "Method Not Allowed" }),
+        );
       }
 
       const tokenParam = parsedURL.searchParams.get("token");
       //if invalid token
-      AuthenticateToken(res, tokenParam);
+      if (!AuthenticateToken(res, tokenParam)) {
+        return;
+      };
       //delete token from database..
       delete SESSIONS_DB[tokenParam];
       writeToDB(SESSIONS_DB_FILE, SESSIONS_DB, (err) => {
@@ -316,7 +342,9 @@ const server = http.createServer((req, res) => {
     if (parsedURL.pathname === "/api/user/profile") {
       if (method !== "GET" && method !== "PATCH" && method !== "DELETE") {
         res.writeHead(405, { "content-type": "application/json" });
-        return res.end(JSON.stringify({ success: false, message: "Method Not Allowed" }));
+        return res.end(
+          JSON.stringify({ success: false, message: "Method Not Allowed" }),
+        );
       }
 
       if (method === "GET") {
@@ -349,7 +377,11 @@ const server = http.createServer((req, res) => {
         if (!AuthenticateToken(res, tokenParam)) {
           return;
         }
-
+      //content type guard
+      if(req.headers['content-type'] !== 'application/json') {
+        contentTypeGuard(res);
+        return;
+      }
         //receive data
         let body = "";
         req.on("data", (chunk) => {
@@ -363,10 +395,16 @@ const server = http.createServer((req, res) => {
               missingParamsHandler(res);
               return;
             }
-            const user = USERS_DB.find(
-              (user) =>
-                user.email === SESSIONS_DB[tokenParam].email.trim().toLowerCase(),
-            );
+            //verify if user already exists...
+      
+            const user = USERS_DB.find((user) => user.email ===  SESSIONS_DB[tokenParam].email.trim().toLowerCase());
+            //verify if incoming email belongs to an existing user
+            const existingUser = USERS_DB.find(user => user.email === email.trim().toLowerCase());
+            //verify if this existing user === user(logged in user)..if not, then the email is taken
+            if(existingUser && existingUser.email !== user.email) {
+              res.writeHead(409, {'content-type': 'application/json'});
+              return res.end(JSON.stringify({success: false, message: 'email already taken'}));
+            }
 
             if (name) user.name = name;
             if (email) user.email = email.trim().toLowerCase();
@@ -438,9 +476,7 @@ const server = http.createServer((req, res) => {
           return;
         }
         //delete operation:
-        const index = USERS_DB.findIndex(
-          (user) => user.email === SESSIONS_DB[tokenParam].email,
-        );
+        const index = USERS_DB.findIndex((user) => user.email === SESSIONS_DB[tokenParam].email);
         if (index !== -1) {
           console.log(index);
           USERS_DB.splice(index, 1);
@@ -454,35 +490,42 @@ const server = http.createServer((req, res) => {
             );
           }
 
-          // delete token
-          delete SESSIONS_DB[tokenParam];
+          // delete all tokens partaining to user
+          for(const [token, {email, createdAt}] of Object.entries(SESSIONS_DB)) {
+            if(email === user.email) {
+              delete SESSIONS_DB[token];
+            }
+          }
+          
           writeToDB(SESSIONS_DB_FILE, SESSIONS_DB, (err) => {
             if (err) {
               res.writeHead(500, { "content-type": "application/json" });
-              return res.end(
-                JSON.stringify({ success: false, message: err.message }),
-              );
+              return res.end(JSON.stringify({ success: false, message: err.message }));
             }
+            res.writeHead(200, { "content-type": "application/json" });
+            return res.end(JSON.stringify({success: true, message: "user deleted successfully"}))
           });
-        });
-        res.writeHead(200, { "content-type": "application/json" });
-        return res.end(
-          JSON.stringify({ success: true, message: "user deleted successfully" }),
-        );
-
-      }
+        })}
     }
 
     //change password
     if (parsedURL.pathname === "/api/user/password") {
       if (method !== "PATCH") {
         res.writeHead(405, { "content-type": "application/json" });
-        return res.end(JSON.stringify({ success: false, message: "Method Not Allowed" }));
+        return res.end(
+          JSON.stringify({ success: false, message: "Method Not Allowed" }),
+        );
       }
 
       //verify token
       const tokenParam = parsedURL.searchParams.get("token");
       if (!AuthenticateToken(res, tokenParam)) {
+        return;
+      }
+
+      //content type guard
+      if (req.headers["content-type"] !== "application/json") {
+        contentTypeGuard(res);
         return;
       }
 
@@ -566,13 +609,14 @@ const server = http.createServer((req, res) => {
         }
       });
       return;
-    }
-
-    else {
-      res.writeHead(404, {"content-type": 'application/json'});
-      return res.end(JSON.stringify({
-        success: false, message: 'error reaching route, does not exist'
-      }))
+    } else {
+      res.writeHead(404, { "content-type": "application/json" });
+      return res.end(
+        JSON.stringify({
+          success: false,
+          message: "error reaching route, does not exist",
+        }),
+      );
     }
   }
 
