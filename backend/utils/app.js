@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { promisify } = require("util");
-const { PUBLIC_DIR, SESSIONS_DB, MAX_BYTE_SIZE } = require("./state");
+const { PUBLIC_DIR, SESSIONS_DB, MAX_BYTE_SIZE, USERS_DB } = require("./state");
 
 const scrypt = promisify(crypto.scrypt);
 
@@ -111,6 +111,15 @@ function AuthenticateToken(res, token) {
   return true;
 }
 
+function extractTokenAndUser(req) {
+  const authHeader = req.headers['authorization'].split(' ');
+  const tokenParam = authHeader[1];
+
+  const user = USERS_DB.find(user => user.email === SESSIONS_DB[tokenParam].email);
+
+  return{tokenParam, user}
+}
+
 function missingParamsHandler(res) {
   res.writeHead(400, { "content-type": "application/json" });
   return res.end(
@@ -128,6 +137,16 @@ function contentTypeGuard(res) {
   res.writeHead(415, {'content-type' : 'application/json'});
   return res.end(JSON.stringify({success: false, message: 'unexpected content type'}))
 }
+
+function verifyUserFromToken(parsedUrl) {
+  const tokenParam = parsedUrl.searchParams.get('token');
+  const user = USERS_DB.find(user => user.email === SESSIONS_DB[tokenParam].email);
+  if(!user) {
+    return false;
+  }
+
+  return true;
+}
 module.exports = {
   dbLogicPrimer,
   clearDatabase,
@@ -138,5 +157,6 @@ module.exports = {
   AuthenticateToken,
   missingParamsHandler,
   byteSizeHandler,
-  contentTypeGuard
+  contentTypeGuard,
+  extractTokenAndUser
 };

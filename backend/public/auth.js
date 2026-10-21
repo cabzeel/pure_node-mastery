@@ -1,11 +1,14 @@
 // public/auth.js
+// Everything for the signup + login pages lives in this one file: visual helpers, the shared
+// request flow, signup, login and the password show/hide buttons.
+// The dashboard has its own script (dashboard.js), so nothing about the dashboard lives here.
 
 const form = document.getElementById("signup-form");
 const loginForm = document.getElementById("login-form");
 const BASE_URL = "http://localhost:3000";
 
 // ==========================================
-// 1. BLENDED UI & VISUAL STATE HELPERS
+// 1. UI & VISUAL STATE HELPERS
 // ==========================================
 
 function clearErrors(targetForm) {
@@ -59,161 +62,103 @@ function setLoading(targetForm, isLoading, loadingLabel) {
 }
 
 // ==========================================
-// 2. SIGNUP LOGIC ENGINE
+// 2. SHARED REQUEST FLOW (signup + login)
+// ==========================================
+
+// Send the form as JSON, show any errors, and run onSuccess(result) when the server says OK.
+async function submitAuth(targetForm, { path, loadingLabel, failMessage, networkMessage, onSuccess }) {
+  const values = Object.fromEntries(new FormData(targetForm).entries());
+
+  try {
+    setLoading(targetForm, true, loadingLabel);
+
+    const response = await fetch(`${BASE_URL}${path}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify(values),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      if (result.errors) {
+        showFieldErrors(targetForm, result.errors);
+      } else {
+        showFormError(
+          targetForm,
+          result.message || failMessage || `Server error: ${response.status}`,
+        );
+      }
+      setLoading(targetForm, false);
+      return;
+    }
+
+    targetForm.reset();
+    setLoading(targetForm, false);
+    onSuccess(result);
+  } catch (networkError) {
+    console.error("Request failed:", networkError);
+    showFormError(targetForm, networkMessage);
+    setLoading(targetForm, false);
+  }
+}
+
+// The dashboard reads the token from sessionStorage and sends it in the Authorization header.
+function startSession(token) {
+  sessionStorage.setItem("token", token);
+  window.location.assign("dashboard.html");
+}
+
+// ==========================================
+// 3. SIGNUP
 // ==========================================
 if (form) {
-  form.addEventListener("submit", async (e) => {
+  form.addEventListener("submit", (e) => {
     e.preventDefault();
     clearErrors(form);
 
-    const formData = new FormData(e.target);
-    const formValues = Object.fromEntries(formData.entries());
-
-    if (formValues.password !== formValues.confirmPassword) {
+    if (form.elements.password.value !== form.elements.confirmPassword.value) {
       showFieldErrors(form, { confirmPassword: "Passwords do not match." });
       return;
     }
 
-    try {
-      setLoading(form, true, "Creating account…");
-
-      const response = await fetch(`${BASE_URL}/api/signup`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          accept: "application/json",
-        },
-        body: JSON.stringify(formValues),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        if (result.errors) {
-          showFieldErrors(form, result.errors);
-        } else {
-          showFormError(
-            form,
-            result.message || `Server error: ${response.status}`,
-          );
-        }
-        setLoading(form, false);
-        return;
-      }
-
-      console.log("Success:", result);
-      form.reset();
-      setLoading(form, false);
-
-      if (result.user.token) {
-        window.location.assign(`dashboard.html?token=${result.user.token}`);
-      } else {
-        window.location.assign("login.html?registered=1");
-      }
-    } catch (networkError) {
-      console.error("Submission transaction failed:", networkError);
-      showFormError(
-        form,
-        "Could not connect to the server. Check your connection.",
-      );
-      setLoading(form, false);
-    }
+    submitAuth(form, {
+      path: "/api/signup",
+      loadingLabel: "Creating account…",
+      networkMessage: "Could not connect to the server. Check your connection.",
+      onSuccess: (result) => {
+        if (result.user?.token) startSession(result.user.token);
+        else window.location.assign("login.html?registered=1");
+      },
+    });
   });
 }
 
 // ==========================================
-// 3. LOGIN LOGIC ENGINE
+// 4. LOGIN
 // ==========================================
 if (loginForm) {
-  loginForm.addEventListener("submit", async (e) => {
+  loginForm.addEventListener("submit", (e) => {
     e.preventDefault();
     clearErrors(loginForm);
 
-    const formData = new FormData(e.target);
-    const formValues = Object.fromEntries(formData.entries());
-
-    try {
-      setLoading(loginForm, true, "Logging in…");
-
-      const response = await fetch(`${BASE_URL}/api/login`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          accept: "application/json",
-        },
-        body: JSON.stringify(formValues),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        if (result.errors) {
-          showFieldErrors(loginForm, result.errors);
-        } else {
-          showFormError(loginForm, result.message || "Login failed.");
-        }
-        setLoading(loginForm, false);
-        return;
-      }
-
-      console.log("Login Success:", result);
-      loginForm.reset();
-      setLoading(loginForm, false);
-
-      window.location.assign(`dashboard.html?token=${result.token}`);
-    } catch (networkError) {
-      console.error("Login connection transaction failed:", networkError);
-      showFormError(
-        loginForm,
-        "Could not reach the server. Please verify your connection.",
-      );
-      setLoading(loginForm, false);
-    }
+    submitAuth(loginForm, {
+      path: "/api/login",
+      loadingLabel: "Logging in…",
+      failMessage: "Login failed.",
+      networkMessage: "Could not reach the server. Please verify your connection.",
+      onSuccess: (result) => startSession(result.token),
+    });
   });
 }
 
 // ==========================================
-// 4. SECURE INTERFACE INITIALIZERS & PROFILE FETCHING
+// 5. PASSWORD SHOW / HIDE BUTTONS
 // ==========================================
-document.addEventListener("DOMContentLoaded", async () => {
-  // Check if the current page body layout targets the dashboard
-  if (document.body.dataset.page === "dashboard") {
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get("token");
-
-    if (token) {
-      try {
-        // Fetch the custom server-side data payload
-        const response = await fetch(
-          `${BASE_URL}/api/user/profile?token=${token}`,
-          {
-            method: "GET",
-            headers: { accept: "application/json" },
-          },
-        );
-
-        if (response.ok) {
-          const profile = await response.json();
-
-          // Dynamically map values directly onto your HTML template layout nodes
-          const greeting = document.getElementById("greeting");
-          const userEmail = document.getElementById("user-email");
-
-          if (greeting && profile.user?.name) {
-            // Greets them by their first name string segment
-            greeting.textContent = `Hello, ${profile.user.name.split(" ")[0]}.`;
-          }
-          if (userEmail && profile.user?.email) {
-            userEmail.textContent = profile.user.email;
-          }
-        }
-      } catch (error) {
-        console.error("Failed to parse dynamic dashboard parameters:", error);
-      }
-    }
-  }
-
-  // Password fields text type reveal/hide triggers
+document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("[data-toggle-password]").forEach((button) => {
     const input = document.getElementById(button.dataset.togglePassword);
     if (!input) return;
@@ -223,31 +168,4 @@ document.addEventListener("DOMContentLoaded", async () => {
       button.textContent = reveal ? "Hide" : "Show";
     });
   });
-
-  // Dynamic asynchronous logout action execution pipeline
-  const logoutBtn = document.querySelector(".logout-btn");
-  if (logoutBtn) {
-    logoutBtn.addEventListener("click", async (e) => {
-      e.preventDefault();
-
-      const urlParams = new URLSearchParams(window.location.search);
-      const token = urlParams.get("token");
-
-      if (!token) {
-        window.location.assign("login.html");
-        return;
-      }
-
-      try {
-        await fetch(`${BASE_URL}/api/logout?token=${token}`, {
-          method: "POST",
-          headers: { accept: "application/json" },
-        });
-      } catch (networkError) {
-        console.error("Logout request failed to reach server:", networkError);
-      }
-
-      window.location.assign("login.html");
-    });
-  }
 });

@@ -13,6 +13,7 @@ const {
   missingParamsHandler,
   byteSizeHandler,
   contentTypeGuard,
+  extractTokenAndUser,
 } = require("./utils/app");
 const {
   USERS_DB,
@@ -36,9 +37,9 @@ setInterval(() => {
   clearExpiredTokens(SESSIONS_DB, SESSIONS_DB_FILE, SESSION_LIFESPAN);
 }, SESSION_LIFESPAN);
 
-//mime types:
 
 const server = http.createServer((req, res) => {
+  console.log(req.headers['authorization'])
   const { url, method } = req;
   const parsedURL = new URL(url, "http://localhost:3000");
   const fileName = url === "/" ? "signup.html" : url;
@@ -47,7 +48,6 @@ const server = http.createServer((req, res) => {
   //setting mime type:
   const ext = path.extname(fileName);
   const contentType = MIME_TYPES[ext] || "application/octet";
-  console.log(req.headers["content-type"]);
 
   if (url.startsWith("/api")) {
     //sign up functionality:
@@ -338,7 +338,6 @@ const server = http.createServer((req, res) => {
     }
 
     //CRUD operations
-    //get  user profile
     if (parsedURL.pathname === "/api/user/profile") {
       if (method !== "GET" && method !== "PATCH" && method !== "DELETE") {
         res.writeHead(405, { "content-type": "application/json" });
@@ -346,19 +345,13 @@ const server = http.createServer((req, res) => {
           JSON.stringify({ success: false, message: "Method Not Allowed" }),
         );
       }
-
-      if (method === "GET") {
-        //extract token
-        const tokenParam = parsedURL.searchParams.get("token");
-        //authenticate token
-        if (!AuthenticateToken(res, tokenParam)) {
+      //extract token
+        
+      const {tokenParam, user} = extractTokenAndUser(req);
+      if (!AuthenticateToken(res, tokenParam)) {
           return;
-        }
-        //find owner of token
-        const user = USERS_DB.find(
-          (user) => user.email === SESSIONS_DB[tokenParam].email,
-        );
-
+      }
+      if (method === "GET") {
         res.writeHead(200, { "content-type": "application/json" });
         return res.end(
           JSON.stringify({
@@ -373,10 +366,6 @@ const server = http.createServer((req, res) => {
       }
       //update user profile
       if (method === "PATCH") {
-        const tokenParam = parsedURL.searchParams.get("token");
-        if (!AuthenticateToken(res, tokenParam)) {
-          return;
-        }
       //content type guard
       if(req.headers['content-type'] !== 'application/json') {
         contentTypeGuard(res);
@@ -395,9 +384,7 @@ const server = http.createServer((req, res) => {
               missingParamsHandler(res);
               return;
             }
-            //verify if user already exists...
-      
-            const user = USERS_DB.find((user) => user.email ===  SESSIONS_DB[tokenParam].email.trim().toLowerCase());
+
             //verify if incoming email belongs to an existing user
             const existingUser = USERS_DB.find(user => user.email === email.trim().toLowerCase());
             //verify if this existing user === user(logged in user)..if not, then the email is taken
@@ -461,26 +448,11 @@ const server = http.createServer((req, res) => {
 
       //delete user
       if (method === "DELETE") {
-        //verify token
-        const tokenParam = parsedURL.searchParams.get("token");
-        if (!AuthenticateToken(res, tokenParam)) {
-          return;
-        }
-
-        //verify user
-        const user = USERS_DB.find(
-          (user) => user.email === SESSIONS_DB[tokenParam].email,
-        );
-        if (!user) {
-          unauthorizedHandler(res, PUBLIC_DIR);
-          return;
-        }
+        
         //delete operation:
         const index = USERS_DB.findIndex((user) => user.email === SESSIONS_DB[tokenParam].email);
         if (index !== -1) {
-          console.log(index);
           USERS_DB.splice(index, 1);
-          console.log("user deleted successfully");
         }
         writeToDB(USERS_DB_FILE, USERS_DB, (err) => {
           if (err) {
@@ -517,12 +489,6 @@ const server = http.createServer((req, res) => {
         );
       }
 
-      //verify token
-      const tokenParam = parsedURL.searchParams.get("token");
-      if (!AuthenticateToken(res, tokenParam)) {
-        return;
-      }
-
       //content type guard
       if (req.headers["content-type"] !== "application/json") {
         contentTypeGuard(res);
@@ -534,6 +500,8 @@ const server = http.createServer((req, res) => {
       req.on("data", (chunk) => (body += chunk));
 
       req.on("end", async () => {
+        const {user, tokenParam} = extractTokenAndUser(req)
+
         try {
           const { currentPassword, newPassword } = JSON.parse(body);
           if (!currentPassword || !newPassword) {
@@ -541,9 +509,7 @@ const server = http.createServer((req, res) => {
             return;
           }
           //locate loggedin user
-          const user = USERS_DB.find(
-            (user) => user.email === SESSIONS_DB[tokenParam].email,
-          );
+          
           //everything here feels redundant because I think if someone comes upto this point or is at the point of changing a password, then it is already confirmed they are a user
           if (!user) {
             unauthorizedHandler(res, PUBLIC_DIR);
@@ -609,7 +575,19 @@ const server = http.createServer((req, res) => {
         }
       });
       return;
-    } else {
+    } 
+    
+//post routes
+    if(parsedURL.pathname === "/api/posts") {
+      const {tokenParam, user} = extractTokenAndUser(req);
+      if(!AuthenticateToken(res, tokenParam)) {
+        return;
+      }
+
+    }
+    
+    
+    else {
       res.writeHead(404, { "content-type": "application/json" });
       return res.end(
         JSON.stringify({
@@ -620,44 +598,6 @@ const server = http.createServer((req, res) => {
     }
   }
 
-  //protected routes functionality:currently, we have only dashboard so I will do that....
-  if (parsedURL.pathname.toLowerCase() === "/dashboard.html") {
-    const tokenParam = parsedURL.searchParams.get("token");
-    //if there is no token:
-    if (!AuthenticateToken(res, tokenParam)) {
-      return;
-    }
-    //if token has expired...
-    const ELAPSED_TIME = Date.now() - SESSIONS_DB[tokenParam].createdAt;
-    const isExpiredToken = ELAPSED_TIME > SESSION_LIFESPAN;
-
-    if (isExpiredToken) {
-      delete SESSIONS_DB[tokenParam];
-      writeToDB(SESSIONS_DB_FILE, SESSIONS_DB, (err) => {
-        if (err) {
-          res.writeHead(500, { "content-type": "application/json" });
-          return res.end(
-            JSON.stringify({ success: false, message: err.message }),
-          );
-        }
-        unauthorizedHandler(res, PUBLIC_DIR);
-        return;
-      });
-      return;
-    }
-    fs.readFile(path.join(PUBLIC_DIR, "dashboard.html"), (err, dashboard) => {
-      if (err) {
-        res.writeHead(500, { "content-type": "application/json" });
-        return res.end(
-          JSON.stringify({ success: false, message: err.message }),
-        );
-      }
-
-      res.writeHead(200, { "content-type": "text/html" });
-      return res.end(dashboard, "utf-8");
-    });
-    return;
-  }
 
   //server file serving functionality
   fs.readFile(filePath, (err, file) => {
