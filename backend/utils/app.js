@@ -111,13 +111,22 @@ function AuthenticateToken(res, token) {
   return true;
 }
 
-function extractTokenAndUser(req) {
+function extractTokenAndUser(req, res) {
   const authHeader = req.headers['authorization'].split(' ');
+  if(!authHeader) {
+    return unauthorizedHandler(res, PUBLIC_DIR);
+  }
   const tokenParam = authHeader[1];
+  if(!AuthenticateToken(res, tokenParam)) {
+    return;
+  }
 
   const user = USERS_DB.find(user => user.email === SESSIONS_DB[tokenParam].email);
+  if(!user || !tokenParam) {
+    return unauthorizedHandler(res, PUBLIC_DIR);
+  }
 
-  return{tokenParam, user}
+  return {tokenParam, user};
 }
 
 function missingParamsHandler(res) {
@@ -138,14 +147,11 @@ function contentTypeGuard(res) {
   return res.end(JSON.stringify({success: false, message: 'unexpected content type'}))
 }
 
-function verifyUserFromToken(parsedUrl) {
-  const tokenParam = parsedUrl.searchParams.get('token');
-  const user = USERS_DB.find(user => user.email === SESSIONS_DB[tokenParam].email);
-  if(!user) {
-    return false;
-  }
 
-  return true;
+function methodGuard(res) {
+  res.writeHead(405, { "content-type": "application/json" });
+  return res.end(JSON.stringify({ success: false, message: "Method Not Allowed" }));
+
 }
 module.exports = {
   dbLogicPrimer,
@@ -158,5 +164,6 @@ module.exports = {
   missingParamsHandler,
   byteSizeHandler,
   contentTypeGuard,
-  extractTokenAndUser
+  extractTokenAndUser,
+  methodGuard
 };
