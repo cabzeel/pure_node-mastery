@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { promisify } = require("util");
-const { PUBLIC_DIR, SESSIONS_DB, MAX_BYTE_SIZE, USERS_DB } = require("./state");
+const { PUBLIC_DIR, SESSIONS_DB, MAX_BYTE_SIZE, USERS_DB, SESSION_LIFESPAN } = require("./state");
 
 const scrypt = promisify(crypto.scrypt);
 
@@ -112,20 +112,27 @@ function AuthenticateToken(res, token) {
 }
 
 function extractTokenAndUser(req, res) {
-  const authHeader = req.headers['authorization'].split(' ');
-  if(!authHeader) {
-    return unauthorizedHandler(res, PUBLIC_DIR);
+  const authHeader = req.headers['authorization'];
+  const [scheme, tokenParam] = authHeader.split(' ');
+
+  if(scheme !== 'Bearer' || !tokenParam) {
+    unauthorizedHandler(res, PUBLIC_DIR);
+    return null;
   }
-  const tokenParam = authHeader[1];
-  if(!AuthenticateToken(res, tokenParam)) {
-    return;
+  const session = SESSIONS_DB[tokenParam];
+  
+  if(!session) {
+    unauthorizedHandler(res, PUBLIC_DIR);
+    console.log('problem at step 2');
+    return null
   }
 
-  const user = USERS_DB.find(user => user.email === SESSIONS_DB[tokenParam].email);
+  const user = USERS_DB.find(user => user.email === session.email);
   if(!user || !tokenParam) {
-    return unauthorizedHandler(res, PUBLIC_DIR);
+    unauthorizedHandler(res, PUBLIC_DIR);
+    console.log('problem at step 3')
+    return null;
   }
-
   return {tokenParam, user};
 }
 
@@ -153,6 +160,56 @@ function methodGuard(res) {
   return res.end(JSON.stringify({ success: false, message: "Method Not Allowed" }));
 
 }
+
+function error500(res, err) {
+  res.writeHead(500, {"content-type": 'application/json'});
+  return res.end(JSON.stringify({success: false, message: err.message}))
+}
+
+function invalidCredentials(res) {
+  res.writeHead(404, {'content-type': 'application/json'});
+  return res.end(JSON.stringify({success: false, message: 'invalid credentials'}));
+}
+function timingsafeEqual(passwordA, passwordB) {
+  // 1. Coerce to strings to guarantee .update() works without crashing
+  const strA = String(passwordA);
+  const strB = String(passwordB);
+
+  // 2. Hash the raw strings directly. SHA-256 normalizes both to exactly 32-byte buffers.
+  const hashA = crypto.createHash('sha256').update(strA).digest();
+  const hashB = crypto.createHash('sha256').update(strB).digest();
+
+  // 3. Safely compare identical-length buffers
+  return crypto.timingSafeEqual(hashA, hashB);
+}
+
+function getRequestData(req, res) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    let bodyLength = 0;
+    
+    req.on('data', (chunk) => {
+      bodyLength += chunk.length;
+      if(bodyLength > MAX_BYTE_SIZE) {
+        byteSizeHandler(req, res);
+        req.destroy();
+        return reject(new Error('maximum byte size exceeded'));
+      }
+      body += chunk;
+    });
+
+    req.on('end', () => {
+      if (req.destroyed) return;
+      resolve(body);
+    });
+
+    req.on('error', (err) => {
+      reject(err);
+    });
+  });
+}
+
+
 module.exports = {
   dbLogicPrimer,
   clearDatabase,
@@ -165,5 +222,9 @@ module.exports = {
   byteSizeHandler,
   contentTypeGuard,
   extractTokenAndUser,
-  methodGuard
+  methodGuard, 
+  error500,
+  invalidCredentials,
+  timingsafeEqual, 
+  getRequestData
 };

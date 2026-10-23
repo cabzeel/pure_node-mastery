@@ -106,6 +106,14 @@ async function submitAuth(targetForm, { path, loadingLabel, failMessage, network
   }
 }
 
+// Your server sends the token inside the user object: { user: { name, email, token } }.
+// Refuse to save anything that is not a real string (saving `undefined` is how you end up
+// sending "Bearer undefined").
+function tokenFrom(result) {
+  const t = result.user?.token;
+  return typeof t === "string" && t ? t : null;
+}
+
 // The dashboard reads the token from sessionStorage and sends it in the Authorization header.
 function startSession(token) {
   sessionStorage.setItem("token", token);
@@ -130,7 +138,8 @@ if (form) {
       loadingLabel: "Creating account…",
       networkMessage: "Could not connect to the server. Check your connection.",
       onSuccess: (result) => {
-        if (result.user?.token) startSession(result.user.token);
+        const token = tokenFrom(result);
+        if (token) startSession(token);
         else window.location.assign("login.html?registered=1");
       },
     });
@@ -150,7 +159,11 @@ if (loginForm) {
       loadingLabel: "Logging in…",
       failMessage: "Login failed.",
       networkMessage: "Could not reach the server. Please verify your connection.",
-      onSuccess: (result) => startSession(result.token),
+      onSuccess: (result) => {
+        const token = tokenFrom(result);
+        if (token) startSession(token);
+        else showFormError(loginForm, `Logged in, but no token was found in the server response (keys: ${Object.keys(result).join(", ")}).`);
+      },
     });
   });
 }
