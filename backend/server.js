@@ -36,7 +36,7 @@ dbLogicPrimer(SESSIONS_DB, SESSIONS_DB_FILE);
 
 // session db cleanup
 setInterval(() => {
-  clearExpiredTokens(SESSIONS_DB, SESSIONS_DB_FILE);
+  clearExpiredTokens(SESSIONS_DB, SESSIONS_DB_FILE, SESSION_LIFESPAN);
 }, 14 * 60 * 1000);
 
 const server = createServer(async (req, res) => {
