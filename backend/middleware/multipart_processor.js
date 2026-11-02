@@ -58,7 +58,7 @@ class multipartStreamParser {
                     if(fileNameMatch) {
                         this.isFile = true;
                         const cleanFileName = fileNameMatch[1];
-                        this.activeFileStream = fs.createWriteStream(`../uploads/ZFA-${cleanFileName}`);
+                        this.activeFileStream = fs.createWriteStream(`../uploads/temp/ZFA-${cleanFileName}`);
                         console.log('filestream opened for writing...');
                     } else {
                         this.isFile = false;
