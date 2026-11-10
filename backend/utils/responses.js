@@ -1,3 +1,7 @@
+const fs = require('fs');
+const path = require('path');
+const { MIME_TYPES } = require('./state');
+
 function contentTypeGuard(res) {
   res.writeHead(415, {'content-type' : 'application/json'});
   return res.end(JSON.stringify({success: false, message: 'unexpected content type'}))
@@ -16,7 +20,7 @@ function error500(res, err) {
 }
 
 function invalidCredentials(res) {
-  res.writeHead(404, {'content-type': 'application/json'});
+  res.writeHead(401, {'content-type': 'application/json'});
   return res.end(JSON.stringify({success: false, message: 'invalid credentials'}));
 }
 
@@ -61,4 +65,29 @@ function status200(res, callback) {
     res.end(callback())
 }
 
-module.exports = { unauthorizedHandler, byteSizeHandler, missingParamsHandler, invalidCredentials, error500, methodGuard, contentTypeGuard, status200};
+function error404(res, cb) {
+  res.writeHead(404, {'content-type': 'application/json'});
+  return res.end(JSON.stringify(cb())) 
+}
+
+function errorConflict(res, cb) {
+  res.writeHead(409, {'content-type': 'application/json'});
+  return res.end(JSON.stringify(cb()));
+}
+
+function handleImageServing(res, filepath) {
+  if(!filepath) {
+    res.writeHead(404, {'content-type': 'application/json'});
+    return res.end(JSON.stringify({success: false, message: 'invalid path'}));
+  }
+  fs.readFile(filepath, (err, data) => {
+    if(err) {
+      res.writeHead(404, {'content-type': 'application/json'});
+      return res.end(JSON.stringify({success: false, message: 'invalid path'}));
+    }
+
+  })
+}
+
+
+module.exports = { handleImageServing,unauthorizedHandler, byteSizeHandler, missingParamsHandler, invalidCredentials, error500, methodGuard, contentTypeGuard, status200, error404, errorConflict};

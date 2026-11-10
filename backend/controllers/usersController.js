@@ -1,12 +1,14 @@
 const { extractTokenAndUser, passwordHash, timingsafeEqual } = require("../utils/auth");
 const { writeToDB, deleteTokens, createToken } = require("../utils/db");
 const { getRequestData } = require("../utils/parser");
-const { contentTypeGuard, missingParamsHandler, errorConflict, error500, status200, error404, invalidCredentials } = require("../utils/responses");
+const { contentTypeGuard, missingParamsHandler, errorConflict, error500, status200, error404, invalidCredentials, methodGuard } = require("../utils/responses");
 const crypto = require('crypto')
 const { USERS_DB, USERS_DB_FILE, SESSIONS_DB, SESSIONS_DB_FILE } = require("../utils/state");
 
 
-function getUser(res, user) {
+function getUser(req, res, next) {
+    const {user} = req;
+    console.log(user)
     return status200(res, () => {
         return JSON.stringify({
         success: true,
@@ -14,9 +16,9 @@ function getUser(res, user) {
     })})
 }
 
-async function updateUserInfo(req, res, user, session) {
+async function updateUserInfo(req, res, next) {
     try {
-        const { headers } = req;
+        const { headers, user } = req;
         if(headers['content-type'] !== 'application/json') {
             return contentTypeGuard(res);
         }
@@ -54,12 +56,12 @@ async function updateUserInfo(req, res, user, session) {
         })
 
     } catch (error) {
-        console.log('error:', error.message)
         return error500(res, error);
     }
 }
 
-function deleteUser(res, user, session) {
+function deleteUser(req, res, next) {
+    const {user, session} = req
     const index = USERS_DB.findIndex(user => user.email === session.email);
 
     if(index === -1) {
@@ -89,7 +91,7 @@ function deleteUser(res, user, session) {
 
 async function updatePassword(req, res) {
     try {
-        const {method, headers} = req;
+        const {method, headers, user} = req;
         if (method !== "PATCH") {
             return methodGuard(res);
         
@@ -99,12 +101,9 @@ async function updatePassword(req, res) {
             return contentTypeGuard(res);
         }
 
-        const auth = extractTokenAndUser(req, res);
-        if(!auth) {
+        if(!user) {
             return invalidCredentials(res);
         }
-        const {user} = auth;
-
         const data = await getRequestData(req, res);
         if(!data) {
             return missingParamsHandler(res);
@@ -140,7 +139,6 @@ async function updatePassword(req, res) {
             })
         })
     } catch (error) {
-        console.log(error)
         return error500(res, error);
     }
 }

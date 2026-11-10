@@ -1,6 +1,7 @@
 const {promisify} = require('util');
 const crypto = require('crypto');
-const { SESSIONS_DB, SESSIONS_DB_FILE, USERS_DB } = require('./state');
+const { SESSIONS_DB, SESSIONS_DB_FILE, USERS_DB, PUBLIC_DIR } = require('./state');
+const {unauthorizedHandler} = require('./responses')
 
 const scrypt = promisify(crypto.scrypt);
 
@@ -24,30 +25,33 @@ function AuthenticateToken(res, token) {
   return true;
 }
 
-function extractTokenAndUser(req, res) {
-  const authHeader = req.headers['authorization'];
-  const [scheme, tokenParam] = authHeader.split(' ');
+// function extractTokenAndUser(req, res) {
+//   const authHeader = req.headers['authorization'];
+//   if(!authHeader) {
+//     res.writeHead(404, {'content-type': 'application/json'})
+//     res.end(JSON.stringify({success: false, message: 'missing auth header'}));
+//     return;
+//   }
+//   const [scheme, tokenParam] = authHeader.split(' ');
 
-  if(scheme !== 'Bearer' || !tokenParam) {
-    unauthorizedHandler(res, PUBLIC_DIR);
-    return null;
-  }
-  const session = SESSIONS_DB[tokenParam];
+//   if(scheme !== 'Bearer' || !tokenParam) {
+//     unauthorizedHandler(res, PUBLIC_DIR);
+//     return null;
+//   }
+//   const session = SESSIONS_DB[tokenParam];
   
-  if(!session) {
-    unauthorizedHandler(res, PUBLIC_DIR);
-    console.log('problem at step 2');
-    return null
-  }
+//   if(!session) {
+//     unauthorizedHandler(res, PUBLIC_DIR);
+//     return null
+//   }
 
-  const user = USERS_DB.find(user => user.email === session.email);
-  if(!user || !tokenParam) {
-    unauthorizedHandler(res, PUBLIC_DIR);
-    console.log('problem at step 3')
-    return null;
-  }
-  return {tokenParam, user};
-}
+//   const user = USERS_DB.find(user => user.email === session.email);
+//   if(!user || !tokenParam) {
+//     unauthorizedHandler(res, PUBLIC_DIR);
+//     return null;
+//   }
+//   return {tokenParam, user};
+// }
 
 
 function timingsafeEqual(passwordA, passwordB) {
@@ -63,4 +67,6 @@ function timingsafeEqual(passwordA, passwordB) {
   return crypto.timingSafeEqual(hashA, hashB);
 }
 
-module.exports = {timingsafeEqual, extractTokenAndUser, AuthenticateToken, passwordHash}
+
+
+module.exports = {timingsafeEqual, AuthenticateToken, passwordHash}

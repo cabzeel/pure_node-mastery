@@ -1,4 +1,6 @@
 const fs = require('fs');
+const { SESSIONS_DB } = require('./state');
+const crypto = require('crypto')
 
 function dbLogicPrimer(db, filePath) {
   if (fs.existsSync(filePath)) {
@@ -67,4 +69,27 @@ function clearExpiredTokens(db, db_file, session_lifespan) {
   }
 }
 
-module.exports = {clearDatabase, clearExpiredTokens, dbLogicPrimer, writeToDB}
+function deleteTokens(userEmail) {
+  const tokensToDelete = [];
+  for(const [token, {email}] of Object.entries(SESSIONS_DB)) {
+    if(userEmail === email) {
+      tokensToDelete.push(token);
+    }
+  }
+  for(const token of tokensToDelete) {
+    delete SESSIONS_DB[token];
+  }
+}
+
+function createToken(email) {
+  const token = crypto.randomBytes(32).toString('hex');
+  SESSIONS_DB[token] = {
+    email: email,
+    createdAt: Date.now()
+  }
+
+  return {token, session: SESSIONS_DB[token]}
+}
+
+
+module.exports = {clearDatabase, clearExpiredTokens, dbLogicPrimer, writeToDB, deleteTokens, createToken}

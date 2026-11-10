@@ -1,6 +1,7 @@
 const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
+const { error500 } = require('../utils/responses');
 
 const imageExtensions = [
   ".jpg",
@@ -16,10 +17,8 @@ const imageExtensions = [
 async function optimizeImg(img, picType) {
     try {
         const ext = path.extname(img);
-        console.log(ext)
         const isImgFormat = imageExtensions.includes(ext);
         if(!isImgFormat) {
-            console.log('does not exist in array');
             throw new Error(`${ext} is not a valid image type`);
         }
 
@@ -35,16 +34,20 @@ async function optimizeImg(img, picType) {
        
        const Image = sharp(img);
        if(picType === 'profilePic' || !picType) {
+        const filePath = path.join(__dirname, `../uploads/ZFA-profile-${Date.now()}.webp`);
         await Image
             .resize(400, 400, {fit: 'cover', position: 'attention'})
             .webp({quality: 85})
-            .toFile(`../uploads/ZFA-profile-${Date.now()}.webp`);
-            return;
+            .toFile(filePath);
+            fs.unlinkSync(img);
+            return filePath;
        }
 
        else if(picType === 'postPic') {
-        await Image.webp({quality: 85}).toFile(`../uploads/ZFA-posts-${Date.now()}.webp`);
-        return;
+        const filePath = path.join(__dirname, `../uploads/ZFA-posts-${Date.now()}.webp`)
+        await Image.webp({quality: 85}).toFile(filePath);
+        fs.unlinkSync(img)
+        return filePath;
        }
 
        else {
@@ -52,9 +55,8 @@ async function optimizeImg(img, picType) {
        }
 
     } catch (error) {
-        console.log('Error: ',error.message);
+        return error500(res, error);
     }
 }
 
-optimizeImg('output.jpeg', 'something')
-
+module.exports = optimizeImg;

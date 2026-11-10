@@ -13,10 +13,15 @@
   /* ============ 1. ROUTE MAP (edit to match your server) ============ */
   const BASE = location.origin;
   // auth.js stores the token in sessionStorage when you log in or sign up.
-  const TOKEN = sessionStorage.getItem("token");
+  // Anything that is not a real token (missing, or the text "undefined"/"null") counts as logged out.
+  const stored = sessionStorage.getItem("token");
+  let TOKEN =
+    stored && stored !== "undefined" && stored !== "null" ? stored : null;
   const endSession = () => sessionStorage.removeItem("token");
+  if (stored && !TOKEN) endSession();
   const ROUTES = {
     profile: "/api/user/profile", // GET | PATCH {name,email} | DELETE
+    picture: "/api/user/profile/picture", // GET -> the picture (the default avatar until the user sets one) | PATCH multipart {avatar} | DELETE (back to default)
     password: "/api/user/password", // PATCH {currentPassword,newPassword}
     posts: "/api/posts", // GET | POST ; /:id -> GET | PATCH | DELETE
     workouts: "/api/workouts", // GET | POST ; /:id -> GET | PUT | DELETE
@@ -70,21 +75,30 @@
   async function api(method, path, body) {
     const url = BASE + path;
     const t0 = performance.now();
-    let res, raw;
+    let res,
+      raw,
+      type = "";
     try {
-      const isFile = body instanceof Blob; // images go as raw bytes, everything else as JSON
+      const isForm = body instanceof FormData; // multipart/form-data: the browser adds the content-type AND the boundary itself, so it must not be set here
+      const isFile = body instanceof Blob; // raw image bytes; everything else goes as JSON
       res = await fetch(url, {
         method,
         headers: {
           accept: "application/json",
           authorization: `Bearer ${TOKEN}`,
-          ...(body && {
-            "content-type": isFile ? body.type : "application/json",
-          }),
+          ...(body &&
+            !isForm && {
+              "content-type": isFile ? body.type : "application/json",
+            }),
         },
-        body: isFile ? body : body && JSON.stringify(body),
+        body: isForm || isFile ? body : body && JSON.stringify(body),
+        cache: "no-store", // never reuse a stale copy (matters for the profile picture)
       });
-      raw = await res.text();
+      type = res.headers.get("content-type") || "";
+      raw =
+        res.ok && type && !/json|text\//i.test(type)
+          ? await res.blob()
+          : await res.text(); // an image comes back as bytes
     } catch {
       log(method, path, 0, Math.round(performance.now() - t0));
       throw new ApiError(0, "Could not reach the server. Is it running?");
@@ -98,6 +112,14 @@
       setTimeout(() => location.assign("login.html"), 1200);
       throw new ApiError(401, "Unauthorized");
     }
+    if (raw instanceof Blob)
+      return {
+        blob: raw,
+        isDefault: /^(1|true)$/i.test(
+          res.headers.get("x-avatar-default") || "",
+        ),
+      }; // the server sent a file
+    if (res.ok && raw === "") return { success: true }; // empty 2xx (e.g. 204 after a delete)
     let data = null;
     try {
       data = JSON.parse(raw);
@@ -105,7 +127,12 @@
       /* not JSON */
     }
     // Your static handler replies to unknown URLs with the HTML 404 page, so "not JSON" == route not built yet.
-    if (!data) throw new ApiError(res.status, "Route not built yet", true);
+    if (!data)
+      throw new ApiError(
+        res.status,
+        `Route not built yet (HTTP ${res.status}, ${type || "no content-type"})`,
+        true,
+      ); // the detail shows what the server really sent
     if (!res.ok || data.success === false)
       throw new ApiError(
         res.status,
@@ -269,6 +296,22 @@
   }
 
   /* ============ 5b. POST HELPERS (shared by feed cards and the form's live preview) ============ */
+  const IMG_TYPES = ["image/jpeg", "image/png", "image/webp"],
+    IMG_MAX_MB = 2;
+  // returns a message when the file is not acceptable, '' when it is fine
+  const imageError = (f) =>
+    !IMG_TYPES.includes(f.type)
+      ? "Choose a JPG, PNG or WebP image."
+      : f.size > IMG_MAX_MB * 1024 * 1024
+        ? `Image must be under ${IMG_MAX_MB} MB.`
+        : "";
+  const avatarOf = (u) => {
+    const a = u.avatarUrl ?? u.avatar ?? u.profilePicture ?? "";
+    return typeof a === "string" && (a.startsWith("blob:") || okUrl(a))
+      ? a
+      : "";
+  };
+  const initialOf = (u) => (u.name || u.email || "?")[0].toUpperCase();
   const CATEGORIES = [
     "General",
     "Workout",
@@ -421,7 +464,9 @@
 
     async function load() {
       // READ (list)
-      body.replaceChildren(h("p", { class: "muted" }, "Loading…"));
+      body.replaceChildren(
+        ...[1, 2, 3].map(() => h("div", { class: "card skeleton" })),
+      );
       try {
         const items = many(await api("GET", r.path));
         body.replaceChildren(
@@ -608,12 +653,10 @@
       };
 
       // image: file picker + drag and drop. Preview is instant (local blob); upload happens on submit.
-      const ALLOWED = ["image/jpeg", "image/png", "image/webp"],
-        MAX_MB = 2;
       const fileIn = h("input", {
         id: "p-img",
         type: "file",
-        accept: ALLOWED.join(","),
+        accept: IMG_TYPES.join(","),
         class: "sr-only",
       });
       const fileName = h(
@@ -632,10 +675,8 @@
         "Remove image",
       );
       const setFile = (f) => {
-        if (f && !ALLOWED.includes(f.type))
-          return toast("Choose a JPG, PNG or WebP image.", "bad");
-        if (f && f.size > MAX_MB * 1024 * 1024)
-          return toast(`Image must be under ${MAX_MB} MB.`, "bad");
+        const bad = f && imageError(f);
+        if (bad) return toast(bad, "bad");
         if (blobUrl) URL.revokeObjectURL(blobUrl);
         file = f || null;
         blobUrl = f ? URL.createObjectURL(f) : "";
@@ -653,7 +694,11 @@
         fileIn,
         h("strong", {}, "Click to choose an image"),
         "or drag it here",
-        h("small", { class: "muted" }, `JPG, PNG or WebP · max ${MAX_MB} MB`),
+        h(
+          "small",
+          { class: "muted" },
+          `JPG, PNG or WebP · max ${IMG_MAX_MB} MB`,
+        ),
       );
       fileIn.addEventListener("change", () => setFile(fileIn.files[0]));
       drop.addEventListener("dragover", (e) => {
@@ -1003,17 +1048,51 @@
     // sidebar user chip
     $("#me-name").textContent = me.name || "You";
     $("#me-email").textContent = me.email || "";
-    $("#avatar").textContent = (me.name || me.email || "?")[0].toUpperCase();
+    const pic = avatarOf(me);
+    $("#avatar").replaceChildren(
+      pic ? h("img", { src: pic, alt: "" }) : initialOf(me),
+    );
   };
   async function loadMe() {
     const d = await api("GET", ROUTES.profile);
     me = d.data ?? d.user ?? d;
     paintMe();
   }
+  // GET /api/user/profile/picture sends the image file itself. We fetch it with the Authorization header
+  // and show it through a temporary blob: URL. (A JSON { url } reply is accepted too.) 404 = no picture yet.
+  let avatarBlob = "";
+  const setAvatar = (url, isDefault = false) => {
+    if (avatarBlob) URL.revokeObjectURL(avatarBlob);
+    avatarBlob = url.startsWith("blob:") ? url : "";
+    me.avatarUrl = url;
+    me.avatarDefault = isDefault; // true only when the server marks it with the X-Avatar-Default header
+  };
+  async function loadPicture() {
+    try {
+      const d = await api("GET", ROUTES.picture);
+      if (d.blob) setAvatar(URL.createObjectURL(d.blob), d.isDefault);
+      else {
+        const v = one(d, "picture");
+        setAvatar((typeof v === "string" ? v : v.url) || "");
+      }
+    } catch (e) {
+      if (e.status === 404) setAvatar("");
+      else throw e;
+    }
+    paintMe();
+  }
 
   // Read-only snapshot of what the server currently has on you. Anything new you add to the
   // profile response later (bio, phone, createdAt...) shows up here automatically.
-  const HIDDEN = ["password", "salt", "token", "hash"]; // never display these, even if the API leaks them
+  const HIDDEN = [
+    "password",
+    "salt",
+    "token",
+    "hash",
+    "avatarurl",
+    "avatar",
+    "profilepicture",
+  ]; // never display these, even if the API leaks them
   const labelOf = (k) =>
     k
       .replace(/([A-Z])/g, " $1")
@@ -1048,6 +1127,124 @@
     );
   }
 
+  // Profile picture: PATCH sets or replaces it, DELETE resets it to the default avatar (/api/user/profile/picture).
+  function avatarCard() {
+    let file = null,
+      blobUrl = "";
+    const pic = h("div", { class: "avatar big" });
+    const fileIn = h("input", {
+      id: "pf-img",
+      type: "file",
+      accept: IMG_TYPES.join(","),
+      class: "sr-only",
+    });
+    const chooseTxt = h("span");
+    const save = h(
+      "button",
+      { class: "btn", type: "submit", hidden: true },
+      "Save picture",
+    );
+    const remove = h(
+      "button",
+      {
+        class: "btn ghost bad",
+        type: "button",
+        hidden: true,
+        onclick: () => del(),
+      },
+      "Remove",
+    );
+    const sync = () => {
+      const src = blobUrl || avatarOf(me);
+      pic.replaceChildren(
+        src ? h("img", { src, alt: "Profile picture" }) : initialOf(me),
+      );
+      chooseTxt.textContent =
+        avatarOf(me) && !me.avatarDefault ? "Change picture" : "Upload picture";
+      save.hidden = !file;
+      remove.hidden = !avatarOf(me) || me.avatarDefault || Boolean(file);
+    };
+    fileIn.addEventListener("change", () => {
+      const f = fileIn.files[0];
+      fileIn.value = "";
+      if (!f) return;
+      const bad = imageError(f);
+      if (bad) return toast(bad, "bad");
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      file = f;
+      blobUrl = URL.createObjectURL(f);
+      sync();
+    });
+    const form = h(
+      "form",
+      { class: "row avatar-row" },
+      pic,
+      h(
+        "div",
+        { class: "stack-sm" },
+        h(
+          "div",
+          { class: "row" },
+          h("label", { class: "btn ghost" }, fileIn, chooseTxt),
+          save,
+          remove,
+        ),
+        h(
+          "small",
+          { class: "muted" },
+          `JPG, PNG or WebP · max ${IMG_MAX_MB} MB`,
+        ),
+      ),
+    );
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!file) return;
+      save.disabled = true;
+      try {
+        const fd = new FormData();
+        fd.append("avatar", file);
+        await api("PATCH", ROUTES.picture, fd); // the user always has a picture (the default one at first), so setting one is an update
+        await loadPicture();
+        URL.revokeObjectURL(blobUrl);
+        file = null;
+        blobUrl = "";
+        sync();
+        toast("Profile picture saved");
+      } catch (err) {
+        toast(err.message, "bad");
+      } finally {
+        save.disabled = false;
+      }
+    });
+    async function del() {
+      if (
+        !(await ask({
+          title: "Remove your profile picture?",
+          confirm: "Your initial will be shown instead.",
+          danger: true,
+          submit: "Remove",
+        }))
+      )
+        return;
+      try {
+        await api("DELETE", ROUTES.picture);
+        await loadPicture();
+        sync(); // the server now sends the default again
+        toast("Profile picture removed");
+      } catch (err) {
+        toast(err.message, "bad");
+      }
+    }
+    sync();
+    return h(
+      "section",
+      { class: "card" },
+      h("h3", {}, "Profile picture"),
+      h("p", { class: "muted" }, "Shown in the sidebar and on your posts."),
+      form,
+    );
+  }
+
   function profileView() {
     const root = h(
       "div",
@@ -1063,7 +1260,7 @@
         ),
       ),
     );
-    const spec = `GET    ${ROUTES.profile}   -> { success:true, user:{ name, email } }\nPATCH  ${ROUTES.profile}   <- { name, email }\nDELETE ${ROUTES.profile}\nPATCH  ${ROUTES.password}  <- { currentPassword, newPassword }`;
+    const spec = `GET    ${ROUTES.profile}   -> { success:true, user:{ name, email } }\nPATCH  ${ROUTES.profile}   <- { name, email }\nGET    ${ROUTES.picture}   -> the picture file (the default avatar until the user sets one)\nPATCH  ${ROUTES.picture}   <- multipart/form-data { avatar: <file> }\nDELETE ${ROUTES.picture}   (back to the default)\nDELETE ${ROUTES.profile}\nPATCH  ${ROUTES.password}  <- { currentPassword, newPassword }`;
 
     (async () => {
       try {
@@ -1072,8 +1269,10 @@
         root.append(errorBox(e, spec));
         return;
       }
+      await loadPicture().catch(() => {});
       root.append(
         detailsCard(),
+        avatarCard(),
         formCard(
           "Edit your details",
           [
@@ -1090,6 +1289,12 @@
           async (v) => {
             // UPDATE
             const d = await api("PATCH", ROUTES.profile, v);
+            // if the server rotated the token (the old one is gone), keep using the new one
+            const fresh = d.user?.token ?? d.token ?? d.data?.token;
+            if (typeof fresh === "string" && fresh) {
+              TOKEN = fresh;
+              sessionStorage.setItem("token", fresh);
+            }
             me = { ...me, ...(d.data ?? d.user ?? v) };
             paintMe();
             $("#details")?.replaceWith(detailsCard());
@@ -1227,8 +1432,7 @@
   if (!TOKEN) location.replace("login.html");
   else
     loadMe()
-      .catch(() => {
-        /* profile route may not exist yet; the UI still works */
-      })
+      .then(loadPicture)
+      .catch((e) => console.warn("Startup request failed:", e.message))
       .finally(route);
 })();

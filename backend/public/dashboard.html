@@ -7,19 +7,20 @@
   <title>Dashboard · ZeelTech</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <!-- no query strings on assets: your static server matches the raw url to a file name -->
   <link rel="stylesheet" href="dashboard.css">
 </head>
 <body>
   <div class="app">
     <aside class="side">
-      <a class="wordmark" href="#/overview">ZeelTech</a>
+      <a class="wordmark" href="#/overview"><span class="logo">Z</span>ZeelTech</a>
+      <p class="side-label">Menu</p>
       <nav>
-        <a href="#/overview" data-route="overview">Overview</a>
-        <a href="#/feed" data-route="feed">Feed</a>
-        <a href="#/workouts" data-route="workouts">Workouts</a>
-        <a href="#/profile" data-route="profile">Profile</a>
+        <a href="#/overview" data-route="overview"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Overview</a>
+        <a href="#/feed" data-route="feed"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Feed</a>
+        <a href="#/workouts" data-route="workouts"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h3m12 0h3M6 8v8m12-8v8M9 6v12m6-12v12M9 12h6"/></svg>Workouts</a>
+        <a href="#/profile" data-route="profile"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Profile</a>
       </nav>
       <div class="me">
         <span class="avatar" id="avatar">?</span>
@@ -36,7 +37,7 @@
 
   <button id="log-toggle" class="log-toggle">API log</button>
   <aside id="log" hidden>
-    <h4>Requests <small>(tokens hidden)</small></h4>
+    <h4>Requests <small>(token is sent in the Authorization header)</small></h4>
     <ul id="log-list"></ul>
   </aside>
 

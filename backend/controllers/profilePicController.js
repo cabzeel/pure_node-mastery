@@ -1,13 +1,17 @@
 const fs = require('fs');
-const { error404, error500, status200 } = require('../utils/responses');
+const { error404, error500, status200, invalidCredentials } = require('../utils/responses');
 const { serveImg, processImg } = require('../utils/parser');
 const path = require('path');
 const { writeToDB } = require('../utils/db');
 const { USERS_DB_FILE, USERS_DB } = require('../utils/state');
 
 //create profile pic
-function getProfilePic(res, user) {
+function getProfilePic(req, res) {
     try {
+        const {user} = req;
+        if(!user) {
+            return invalidCredentials(res);
+        }
         const imgPath = user.picMetaData.filepath;
         return serveImg(res, imgPath);
     } catch (error) {
@@ -42,7 +46,6 @@ function deleteProfilePic(res, user) {
         fs.unlinkSync(imgPath);
         //set new filePath to the default
         user.picMetaData.filepath = path.resolve(__dirname, '../uploads/default.webp');
-        console.log(user.picMetaData)
         //write changes to DB..
         writeToDB(USERS_DB_FILE, USERS_DB, (err) => {
             if(err) {

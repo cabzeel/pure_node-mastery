@@ -22,7 +22,6 @@ async function signUp(req, res) {
         const body = await getRequestData(req, res);
 
         const parsedData = JSON.parse(body);
-        console.log(parsedData);
         const {name, email, password} = parsedData;
         //verify if user containing said email exists..
         const existingUser = USERS_DB.find(user => user.email === email.trim().toLowerCase())
@@ -99,12 +98,11 @@ async function logIn(req, res) {
         //check if user exists
         const user = USERS_DB.find(user => user.email === email.trim().toLowerCase());
         if(!user) {
-            return invalidCredentials(res);
+            return invalidCredentials(res)
         }
 
         const hashedPassword = await passwordHash(password, user.salt)
         const isEqual = timingsafeEqual(user.password, hashedPassword);
-        console.log(isEqual)
         if(!isEqual) {
             return invalidCredentials(res);
         }
@@ -128,18 +126,14 @@ async function logIn(req, res) {
     }
 }
 
-async function logOut(req, res) {
-    const {method} = req;
+async function logOut(req, res, next) {
+    const {method, user} = req;
+    console.log(user)
     if (method !== "POST") {
         methodGuard(res);
         return;
     }
 
-    const auth = extractTokenAndUser(req, res);
-      if (!auth) {
-        return;
-      }
-    const { tokenParam, user } = auth;
       //find all tokens for that user and delete
     deleteTokens(user.email);
 
@@ -153,7 +147,6 @@ async function logOut(req, res) {
             return JSON.stringify({ success: true, message: "logout successful" })
         })
     });
-      
 
 }
 

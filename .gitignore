@@ -4,3 +4,5 @@ backend/test.js
 test.js
 .vercel
 backend/state.js
+backend/uploads
+/backend/node_modules
