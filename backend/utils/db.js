@@ -1,6 +1,7 @@
 const fs = require('fs');
 const { SESSIONS_DB } = require('./state');
-const crypto = require('crypto')
+const crypto = require('crypto');
+const AppError = require('../middleware/AppError');
 
 function dbLogicPrimer(db, filePath) {
   if (fs.existsSync(filePath)) {
@@ -37,10 +38,9 @@ function clearDatabase(db) {
 
 function writeToDB(db_file, db, callback) {
   fs.writeFile(db_file, JSON.stringify(db, null, 2), (err) => {
+    
     if (err) {
-      console.error("database write error:", err.message);
-      callback(err);
-      return;
+      throw new AppError(500, 'internal server error')
     }
 
     callback(null);
@@ -60,10 +60,7 @@ function clearExpiredTokens(db, db_file, session_lifespan) {
     console.log("no expired tokens");
   } else {
     writeToDB(db_file, db, (err) => {
-      if (err) {
-        console.log(err);
-        return;
-      }
+      
       console.log(`${count} tokens deleted successfully`);
     });
   }

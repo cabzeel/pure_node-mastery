@@ -7,4 +7,4 @@ function profilePicRoute(router) {
     router.delete('/api/user/profile/picture', extractTokenAndUser, deleteProfilePic);
 }
 
-module.exports = profilePicRoute
+module.exports = profilePicRoute;

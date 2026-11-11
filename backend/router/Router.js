@@ -1,3 +1,4 @@
+const errorHandler = require("../middleware/errorHandler");
 
 class Router {
     constructor() {
@@ -91,23 +92,27 @@ class Router {
 
     runHandlers(handlers, req, res) {
         let index = 0;
-        function next() {
-            const handler = handlers[index];
-            index++;
+        async function next() {
+            try {
+                const handler = handlers[index];
+                index++;
 
-            if(!handler) return;
+                if(!handler) return;
 
-            let nextCalled = false;
-            function nextHandler() {
-                if(nextCalled) {
-                    throw new Error('next() called multiple times')
+                let nextCalled = false;
+                function nextHandler() {
+                    if(nextCalled) {
+                        throw new Error('next() called multiple times');
+                    }
+                    nextCalled = true;
+                    next()
                 }
-                nextCalled = true;
-                next()
+                 await handler(req, res, nextHandler);
+            } catch (error) {
+                return errorHandler(error, req, res);
             }
-            handler(req, res, nextHandler);
         }
-        next()
+        next();
     }
 
     handle(req, res) {

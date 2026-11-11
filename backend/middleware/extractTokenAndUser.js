@@ -1,12 +1,11 @@
 const { error404, unauthorizedHandler } = require("../utils/responses");
 const { PUBLIC_DIR, SESSIONS_DB, USERS_DB } = require("../utils/state");
+const AppError = require("./AppError");
 
 function extractTokenAndUser(req, res, next) {
     const authHeader = req.headers['authorization'];
     if(!authHeader) {
-        return error404(res, () => {
-            return {success: false, message: 'missing auth header'}
-        })
+        throw new AppError(404, 'missing auth headers')
     }
     const [scheme, tokenParam] = authHeader.split(' ');
     if(scheme !== 'Bearer' || !tokenParam) {

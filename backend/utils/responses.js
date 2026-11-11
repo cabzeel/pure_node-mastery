@@ -1,38 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { MIME_TYPES } = require('./state');
-
-function contentTypeGuard(res) {
-  res.writeHead(415, {'content-type' : 'application/json'});
-  return res.end(JSON.stringify({success: false, message: 'unexpected content type'}))
-}
-
-
-function methodGuard(res) {
-  res.writeHead(405, { "content-type": "application/json" });
-  return res.end(JSON.stringify({ success: false, message: "Method Not Allowed" }));
-
-}
-
-function error500(res, err) {
-  res.writeHead(500, {"content-type": 'application/json'});
-  return res.end(JSON.stringify({success: false, message: err.message}))
-}
-
-function invalidCredentials(res) {
-  res.writeHead(401, {'content-type': 'application/json'});
-  return res.end(JSON.stringify({success: false, message: 'invalid credentials'}));
-}
-
-
-
-function missingParamsHandler(res) {
-  res.writeHead(400, { "content-type": "application/json" });
-  return res.end(
-    JSON.stringify({ success: false, message: "missing required arguments" }),
-  );
-}
-
+const AppError = require('../middleware/AppError');
 
 function byteSizeHandler(req, res) {
   res.writeHead(413, { "content-type": "application/json" });
@@ -65,10 +34,6 @@ function status200(res, callback) {
     res.end(callback())
 }
 
-function error404(res, cb) {
-  res.writeHead(404, {'content-type': 'application/json'});
-  return res.end(JSON.stringify(cb())) 
-}
 
 function errorConflict(res, cb) {
   res.writeHead(409, {'content-type': 'application/json'});
@@ -90,4 +55,4 @@ function handleImageServing(res, filepath) {
 }
 
 
-module.exports = { handleImageServing,unauthorizedHandler, byteSizeHandler, missingParamsHandler, invalidCredentials, error500, methodGuard, contentTypeGuard, status200, error404, errorConflict};
+module.exports = { handleImageServing,unauthorizedHandler, byteSizeHandler, status200, errorConflict};

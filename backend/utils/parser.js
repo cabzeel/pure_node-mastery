@@ -1,3 +1,4 @@
+const AppError = require("../middleware/AppError");
 const multipartStreamParser = require("../middleware/multipart_processor");
 const optimizeImg = require("../middleware/optimizeImg");
 const { error500, error404, byteSizeHandler } = require("./responses");
@@ -40,16 +41,15 @@ async function processImg(req, res) {
     data.filepath = filePath;
     return data;
   } catch (error) {
-    error500(res, error);
+    console.error(error.message);
+    throw new AppError(500, error.message)
   }
 }
 
 function serveImg(res, path) {
   fs.readFile(path, (err, file) => {
     if(err) {
-      return error404(res, () => {
-        return {success: false, message: err.message}
-      })
+      throw new AppError(404, 'resource not found')
     }
     res.writeHead(200, {'content-type': 'image/webp'});
     res.end(file);

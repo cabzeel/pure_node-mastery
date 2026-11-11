@@ -23,8 +23,8 @@
     profile: "/api/user/profile", // GET | PATCH {name,email} | DELETE
     picture: "/api/user/profile/picture", // GET -> the picture (the default avatar until the user sets one) | PATCH multipart {avatar} | DELETE (back to default)
     password: "/api/user/password", // PATCH {currentPassword,newPassword}
-    posts: "/api/posts", // GET | POST ; /:id -> GET | PATCH | DELETE
-    workouts: "/api/workouts", // GET | POST ; /:id -> GET | PUT | DELETE
+    // posts: "/api/posts", // GET | POST ; /:id -> GET | PATCH | DELETE
+    // workouts: "/api/workouts", // GET | POST ; /:id -> GET | PUT | DELETE
     uploads: "/api/uploads", // POST raw image bytes -> { success:true, url:'/uploads/xyz.jpg' }
     logout: "/api/logout", // POST (already built)
   };
