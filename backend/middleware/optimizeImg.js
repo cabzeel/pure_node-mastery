@@ -1,7 +1,7 @@
 const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
-const { error500 } = require('../utils/responses');
+const { PUBLIC_DIR } = require('../utils/state');
 
 const imageExtensions = [
   ".jpg",
@@ -34,18 +34,20 @@ async function optimizeImg(img, picType) {
        
        const Image = sharp(img);
        if(picType === 'profilePic' || !picType) {
-        const filePath = path.join(__dirname, `../uploads/ZFA-profile-${Date.now()}.webp`);
+        const filePath = `/uploads/profPic/ZFA-profile-${Date.now()}.webp`
+        const writePath = path.join(PUBLIC_DIR, filePath);
         await Image
             .resize(400, 400, {fit: 'cover', position: 'attention'})
             .webp({quality: 85})
-            .toFile(filePath);
+            .toFile(writePath);
             fs.unlinkSync(img);
             return filePath;
        }
 
        else if(picType === 'postPic') {
-        const filePath = path.join(__dirname, `../uploads/ZFA-posts-${Date.now()}.webp`)
-        await Image.webp({quality: 85}).toFile(filePath);
+        const filePath = `/uploads/posts/ZFA-posts-${Date.now()}.webp`;
+        let writePath = path.join(PUBLIC_DIR, filePath)
+        await Image.webp({quality: 85}).toFile(writePath);
         fs.unlinkSync(img)
         return filePath;
        }
@@ -55,7 +57,8 @@ async function optimizeImg(img, picType) {
        }
 
     } catch (error) {
-        return error500(res, error);
+        console.error(error)
+        return;
     }
 }
 

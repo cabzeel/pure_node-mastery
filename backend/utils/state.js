@@ -4,6 +4,8 @@ const USERS_DB = [];
 const SESSIONS_DB = {};
 const POSTS_DB = [];
 const WORKOUTS_DB = [];
+const POSTS_DB_FILE = path.join(__dirname, '..', 'db', 'posts.json');
+const WORKOUTS_DB_FILE = path.join(__dirname, '..', 'db/workouts.json')
 const USERS_DB_FILE = path.join(__dirname, '..', 'db', 'users.json');
 const SESSIONS_DB_FILE = path.join(__dirname, '..', 'db', 'sessions.json');
 const SESSION_LIFESPAN =  15 * 60 * 1000;
@@ -48,7 +50,7 @@ const MASTER_ALLOWLIST = [
     // Fonts
     '.ttf', '.otf', '.woff', '.woff2', '.eot'
 ];
-
+const CATEGORY_LIST = ['General', 'Workout', 'Nutrition', 'Progress', 'Question', 'Event']
 
 module.exports = {
     USERS_DB,
@@ -60,5 +62,8 @@ module.exports = {
     PUBLIC_DIR,
     MIME_TYPES,
     MAX_BYTE_SIZE,
-    MASTER_ALLOWLIST
+    MASTER_ALLOWLIST,
+    POSTS_DB, WORKOUTS_DB,
+    POSTS_DB_FILE, WORKOUTS_DB_FILE,
+    CATEGORY_LIST
 }

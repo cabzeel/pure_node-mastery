@@ -114,9 +114,11 @@ function tokenFrom(result) {
   return typeof t === "string" && t ? t : null;
 }
 
-// The dashboard reads the token from sessionStorage and sends it in the Authorization header.
-function startSession(token) {
-  sessionStorage.setItem("token", token);
+// The dashboard reads two things from sessionStorage: the token (sent in the Authorization header)
+// and the user id (every route is /api/users/<id>), so the server must send both in the user object.
+function startSession(result) {
+  sessionStorage.setItem("token", result.user.token);
+  if (result.user.id) sessionStorage.setItem("userId", String(result.user.id));
   window.location.assign("dashboard.html");
 }
 
@@ -139,7 +141,7 @@ if (form) {
       networkMessage: "Could not connect to the server. Check your connection.",
       onSuccess: (result) => {
         const token = tokenFrom(result);
-        if (token) startSession(token);
+        if (token) startSession(result);
         else window.location.assign("login.html?registered=1");
       },
     });
@@ -161,7 +163,7 @@ if (loginForm) {
       networkMessage: "Could not reach the server. Please verify your connection.",
       onSuccess: (result) => {
         const token = tokenFrom(result);
-        if (token) startSession(token);
+        if (token) startSession(result);
         else showFormError(loginForm, `Logged in, but no token was found in the server response (keys: ${Object.keys(result).join(", ")}).`);
       },
     });

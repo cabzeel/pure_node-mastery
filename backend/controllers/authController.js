@@ -1,8 +1,14 @@
-const { passwordHash,timingsafeEqual} = require("../utils/auth");
+const { passwordHash, timingsafeEqual } = require("../utils/auth");
 const { getRequestData } = require("../utils/parser");
 const { status200 } = require("../utils/responses");
 const crypto = require("crypto");
-const {USERS_DB,USERS_DB_FILE,SESSIONS_DB,SESSIONS_DB_FILE} = require("../utils/state");
+const {
+  USERS_DB,
+  USERS_DB_FILE,
+  SESSIONS_DB,
+  SESSIONS_DB_FILE,
+  PUBLIC_DIR,
+} = require("../utils/state");
 const { writeToDB, deleteTokens, createToken } = require("../utils/db");
 const path = require("path");
 const AppError = require("../middleware/AppError");
@@ -12,7 +18,6 @@ async function signUp(req, res) {
 
   if (method !== "POST") {
     throw new AppError(405, "Method not Allowed");
-    return;
   }
 
   if (headers["content-type"] !== "application/json") {
@@ -29,7 +34,7 @@ async function signUp(req, res) {
   );
 
   if (existingUser) {
-    throw new AppError(409, 'User already exists')
+    throw new AppError(409, "User already exists");
   }
   // create user object
   const id = crypto.randomUUID();
@@ -37,7 +42,7 @@ async function signUp(req, res) {
   const hashedPassword = await passwordHash(password, salt);
   //prepare path for future profile pic upload
   const picMetaData = {
-    filepath: path.resolve(__dirname, "../uploads/default.webp"),
+    filepath: 'uploads/default.webp',
     id: "",
     size: 0,
   };
@@ -51,7 +56,7 @@ async function signUp(req, res) {
   };
   USERS_DB.push(user);
   //write to file
-  await writeToDB(USERS_DB_FILE, USERS_DB, () => {
+  writeToDB(USERS_DB_FILE, USERS_DB, () => {
     //create a token for the user...
     const { token } = createToken(user.email);
     //write to DB
@@ -60,6 +65,7 @@ async function signUp(req, res) {
         return JSON.stringify({
           success: true,
           user: {
+            id: user.id,
             name: user.name,
             email: user.email,
             token: token,
@@ -103,11 +109,12 @@ async function logIn(req, res) {
   const { token } = createToken(user.email);
 
   //write to db
-  await writeToDB(SESSIONS_DB_FILE, SESSIONS_DB, () => {
+  writeToDB(SESSIONS_DB_FILE, SESSIONS_DB, () => {
     status200(res, () => {
       return JSON.stringify({
         success: true,
         user: {
+          id: user.id,
           name: user.name,
           email: user.email,
           token,
@@ -120,7 +127,6 @@ async function logIn(req, res) {
 
 async function logOut(req, res, next) {
   const { method, user } = req;
-  console.log(user);
   if (method !== "POST") {
     throw new AppError(405, "Method not Allowed");
   }
@@ -128,7 +134,7 @@ async function logOut(req, res, next) {
   //find all tokens for that user and delete
   deleteTokens(user.email);
 
-  await writeToDB(SESSIONS_DB_FILE, SESSIONS_DB, () => {
+  writeToDB(SESSIONS_DB_FILE, SESSIONS_DB, () => {
     status200(res, () => {
       return JSON.stringify({ success: true, message: "logout successful" });
     });

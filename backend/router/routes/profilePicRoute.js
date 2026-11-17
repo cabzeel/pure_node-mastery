@@ -2,9 +2,8 @@ const { getProfilePic, updateProfilePic, deleteProfilePic } = require("../../con
 const extractTokenAndUser = require("../../middleware/extractTokenAndUser")
 
 function profilePicRoute(router) {
-    router.get('/api/user/profile/picture', extractTokenAndUser, getProfilePic);
-    router.patch('/api/user/profile/picture', extractTokenAndUser, updateProfilePic)
-    router.delete('/api/user/profile/picture', extractTokenAndUser, deleteProfilePic);
+    router.patch('/api/users/:id/picture', extractTokenAndUser, updateProfilePic)
+    router.delete('/api/users/:id/picture', extractTokenAndUser, deleteProfilePic);
 }
 
 module.exports = profilePicRoute;

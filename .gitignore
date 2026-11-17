@@ -1,8 +1,9 @@
 backend/db
-rant.js
+rant.txt
 backend/test.js
 test.js
 .vercel
 backend/state.js
-backend/uploads
+backend/public/uploads
 /backend/node_modules
+backend/test

@@ -8,15 +8,14 @@ const { writeToDB } = require("../utils/db");
 const { USERS_DB_FILE, USERS_DB } = require("../utils/state");
 const AppError = require("../middleware/AppError");
 
-//create profile pic
-function getProfilePic(req, res) {
-    const { user } = req;
-    if (!user) {
-      throw new AppError(401, "Invalid Credentials");
-    }
-    const imgPath = user.picMetaData.filepath;
-    return serveImg(res, imgPath);
-}
+// function getProfilePic(req, res) {
+//     const { user } = req;
+//     if (!user) {
+//       throw new AppError(401, "Invalid Credentials");
+//     }
+//     const imgPath = user.picMetaData.filepath;
+//     return serveImg(res, imgPath);
+// }
 
 async function updateProfilePic(req, res, next) {
   const {user} = req;
@@ -28,20 +27,22 @@ async function updateProfilePic(req, res, next) {
         return JSON.stringify({
           success: true,
           message: "profile pic updated successfully",
+          imagePath: user.picMetaData.filepath,
         });
       });
     });
 
 }
 
-function deleteProfilePic(res, user) {
+function deleteProfilePic(req, res, next) {
+  const {user} = req;
   const imgPath = user.picMetaData.filepath;
   //remove current pic
   fs.unlinkSync(imgPath);
   //set new filePath to the default
   user.picMetaData.filepath = path.resolve(
     __dirname,
-    "../uploads/default.webp",
+    "../public/uploads/default.webp",
   );
   //write changes to DB..
   writeToDB(USERS_DB_FILE, USERS_DB, (err) => {
@@ -56,5 +57,4 @@ function deleteProfilePic(res, user) {
     });
   });
 }
-
-module.exports = { getProfilePic, updateProfilePic, deleteProfilePic };
+module.exports = { updateProfilePic, deleteProfilePic };

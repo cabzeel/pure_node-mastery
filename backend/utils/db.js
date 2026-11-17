@@ -1,5 +1,6 @@
 const fs = require('fs');
-const { SESSIONS_DB } = require('./state');
+const fsP = require('fs').promises;
+const { SESSIONS_DB, SESSIONS_DB_FILE, USERS_DB, USERS_DB_FILE, POSTS_DB, POSTS_DB_FILE, WORKOUTS_DB, WORKOUTS_DB_FILE } = require('./state');
 const crypto = require('crypto');
 const AppError = require('../middleware/AppError');
 
@@ -36,15 +37,16 @@ function clearDatabase(db) {
 }
 
 
-function writeToDB(db_file, db, callback) {
-  fs.writeFile(db_file, JSON.stringify(db, null, 2), (err) => {
+async function writeToDB(db_file, db, callback) {
+  try {
+    await fsP.writeFile(db_file, JSON.stringify(db, null, 2));
+    if (callback) return callback(null)
     
-    if (err) {
-      throw new AppError(500, 'internal server error')
-    }
-
-    callback(null);
-  });
+  } catch (error) {
+    console.error(error);
+    if(callback) return callback(error);
+    throw new AppError(500, 'something went wrong')
+  }
 }
 
 function clearExpiredTokens(db, db_file, session_lifespan) {
@@ -88,5 +90,12 @@ function createToken(email) {
   return {token, session: SESSIONS_DB[token]}
 }
 
+function loadDatabases() {
+  dbLogicPrimer(USERS_DB, USERS_DB_FILE);
+  dbLogicPrimer(SESSIONS_DB, SESSIONS_DB_FILE);
+  dbLogicPrimer(POSTS_DB, POSTS_DB_FILE);
+  dbLogicPrimer(WORKOUTS_DB, WORKOUTS_DB_FILE);
+}
 
-module.exports = {clearDatabase, clearExpiredTokens, dbLogicPrimer, writeToDB, deleteTokens, createToken}
+
+module.exports = {clearDatabase, clearExpiredTokens, dbLogicPrimer, writeToDB, deleteTokens, createToken, loadDatabases}

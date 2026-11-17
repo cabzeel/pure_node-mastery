@@ -1,5 +1,5 @@
 const fs = require('fs');
-const { MAX_BYTE_SIZE, MASTER_ALLOWLIST } = require('../utils/state');
+const { MAX_BYTE_SIZE, MASTER_ALLOWLIST, PUBLIC_DIR } = require('../utils/state');
 const {byteSizeHandler} = require('../utils/responses')
 const path = require('path');
 const crypto = require('crypto');
@@ -81,7 +81,7 @@ class multipartStreamParser {
                         }
                         //generate unique ID
                         this.fileID = `${crypto.randomUUID()}${ext}`;
-                        this.activeFilePath = path.join(__dirname, `../uploads/temp/ZFA-${this.fileID}`);
+                        this.activeFilePath = path.join(PUBLIC_DIR, `/uploads/temp/ZFA-${this.fileID}`);
                         this.activeFileStream = fs.createWriteStream(this.activeFilePath);
                     } else {
                         this.isFile = false;
@@ -151,7 +151,7 @@ class multipartStreamParser {
                 filepath: this.activeFilePath,
                 id: this.fileID,
                 size: this.activeFileSize,
-                // fields: this.parsedFields,
+                fields: this.parsedFields,
 
             })
         } else {

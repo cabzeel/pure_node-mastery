@@ -14,7 +14,7 @@ function unauthorizedHandler(res, public_dir) {
   res.writeHead(401, { "content-type": "text/html" });
   fs.readFile(path.join(public_dir, "401.html"), (err401, file401) => {
     if (err401) {
-      if (err401.code === ENOENT) {
+      if (err401.code === 'ENOENT') {
         console.error("401.html file not found on disk");
 
         return res.end(
