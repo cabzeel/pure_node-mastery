@@ -21,6 +21,32 @@ function getUser(req, res, next) {
   });
 }
 
+function getUserFromQuery(req, res) {
+  const {query, user} = req;
+  const {q} = query;
+  if(!user) {
+    throw new AppError(403, 'Forbidden access to resource')
+  }
+  let users = [];
+  for(const [_, user] of Object.entries(USERS_DB)) {
+    if(user.name.toLowerCase().startsWith(q.toLowerCase())) {
+      const fetchedUser = {
+        name: user.name,
+        iagePath: user.picMetaData.filepath,
+        id: user.id
+      }
+      users.push(fetchedUser)
+    }
+  }
+  
+  if(users.length === 0) {
+    throw new AppError(404, 'Error locating user');
+  }
+  return status200(res, () => {
+    return JSON.stringify({success: true, users})
+  })
+}
+
 async function updateUserInfo(req, res, next) {
   const { headers, user, session } = req;
   if (headers["content-type"] !== "application/json") {
@@ -146,4 +172,4 @@ async function updatePassword(req, res) {
   });
 }
 
-module.exports = { updateUserInfo, getUser, deleteUser, updatePassword };
+module.exports = { updateUserInfo, getUser, deleteUser, updatePassword, getUserFromQuery };

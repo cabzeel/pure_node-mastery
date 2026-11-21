@@ -1056,3 +1056,352 @@ dialog.sheet[open] {
 .comment-form input:focus {
   box-shadow: none;
 }
+
+/* comment editing */
+.comment-actions {
+  gap: 0;
+  align-self: flex-start;
+}
+.comment-actions .icon-btn {
+  width: 2rem;
+  height: 2rem;
+}
+.comment-actions .ico {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+.comment-edit {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+.comment-edit input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.45rem 0.65rem;
+}
+
+/* ---- Workout form + workout cards ---- */
+.wk-form {
+  max-width: 46rem;
+}
+.wk-top {
+  display: grid;
+  grid-template-columns: 11rem minmax(0, 1fr);
+  gap: 1rem;
+}
+.wk-dur {
+  max-width: 16rem;
+}
+.wk-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0.85rem;
+  border-radius: 9px;
+  background: var(--accent-tint);
+  color: var(--accent-dark);
+  font-weight: 500;
+}
+.ex {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+  background: #fbfcfd;
+}
+.ex-head {
+  align-items: center;
+}
+.ex-name {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+}
+.seg-group {
+  display: inline-flex;
+  align-self: flex-start;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  overflow: hidden;
+}
+.seg {
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.4rem 0.85rem;
+  border: 0;
+  background: #fff;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.seg + .seg {
+  border-left: 1px solid var(--line);
+}
+.seg[aria-pressed="true"] {
+  background: var(--accent);
+  color: #fff;
+}
+.seg:focus-visible,
+.eff:focus-visible,
+.pick:focus-visible {
+  outline: 0;
+  box-shadow: var(--ring);
+}
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.set-n {
+  width: 1.4rem;
+  text-align: center;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.set-f {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.set-f input {
+  min-width: 0;
+}
+.unit {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+.add-ex {
+  display: flex;
+  gap: 0.6rem;
+}
+.add-ex input {
+  flex: 1;
+  min-width: 0;
+}
+.pick {
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.3rem 0.75rem;
+  border-radius: 99px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.pick:hover {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+  color: var(--accent-dark);
+}
+.effort {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.eff {
+  width: 2.4rem;
+  height: 2.4rem;
+  font: inherit;
+  font-weight: 600;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.eff:hover {
+  border-color: #a9b9c6;
+}
+.eff.on {
+  background: var(--accent-tint);
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+.eff[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.wk-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+  gap: 1.25rem;
+  align-items: start; /* each card is as tall as its content, no dead space */
+}
+.card.workout {
+  padding: 1.4rem;
+  gap: 1.1rem;
+}
+.wk-head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.wk-headtext {
+  min-width: 0;
+}
+.wk-date {
+  flex: none;
+  width: 3.5rem;
+  padding: 0.5rem 0;
+  border-radius: 12px;
+  background: var(--accent-tint);
+  color: var(--accent-dark);
+  text-align: center;
+  line-height: 1.1;
+}
+.wk-date small {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.wk-date b {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+}
+.wk-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.wk-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5.2rem, 1fr));
+  gap: 0.6rem;
+}
+.wk-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--hair);
+  border-radius: 10px;
+  background: var(--paper, #f6f8fa);
+}
+.wk-tile small {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.wk-tile b {
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.eff-bar {
+  display: flex;
+  gap: 2px;
+  margin-top: 0.3rem;
+}
+.eff-bar i {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+}
+.eff-bar i.on {
+  background: var(--accent);
+}
+.ex-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.ex-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--hair);
+}
+.ex-list li:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.ex-list strong {
+  font-size: 1rem;
+}
+.setps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.setp {
+  padding: 0.2rem 0.65rem;
+  border-radius: 99px;
+  background: var(--accent-tint);
+  color: var(--accent-dark);
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.setp.more {
+  background: var(--hair);
+  color: var(--ink-soft);
+}
+.wk-note {
+  margin: 0;
+  padding: 0.6rem 0.85rem;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 9px 9px 0;
+  background: var(--paper, #f6f8fa);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+@media (max-width: 560px) {
+  .wk-top {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- Share dialog ---- */
+.sh-list {
+  display: flex;
+  flex-direction: column;
+}
+.sh-list.scroll {
+  max-height: 14rem;
+  overflow-y: auto;
+}
+.sh-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0;
+  border-top: 1px solid var(--hair);
+}
+.sh-row:first-child {
+  border-top: 0;
+}
+.sh-who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.sh-name {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sh-row .btn {
+  padding: 0.35rem 0.85rem;
+  font-size: 0.85rem;
+}

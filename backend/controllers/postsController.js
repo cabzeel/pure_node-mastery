@@ -40,7 +40,7 @@ async function createPost(req, res, next) {
         commentCount: 0,
         comments: [],
         hasLiked: [],
-        createdAt: Date.now()
+        createdAt: Date.now(),
     }
     POSTS_DB.push(post);
     writeToDB(POSTS_DB_FILE, POSTS_DB, () => {
@@ -103,18 +103,16 @@ async function getSinglePost(req, res, next) {
 }
 
 async function editPost(req, res, next) {
-    const {user} =  req;
-        //confirm if the person editing the post is the creator
     const post = verifyPostAuthor(req)
-    
     const {result, imagePath} = await processMultipartData(req, res);
     Object.assign(post, result);
-    //delete the old image...
-    const oldImgPath = path.join(PUBLIC_DIR, post.imagePath)
-    if(existsSync(oldImgPath)) {
-        unlinkSync(path.join(oldImgPath));
+    if(imagePath !== '') {
+        const oldImgPath = path.join(PUBLIC_DIR, post.imagePath);
+        if(existsSync(oldImgPath)) {
+        unlinkSync(oldImgPath);
     }
-    post.imagePath = imagePath;
+    }
+    console.log(post.imagePath)
     //write changes to database...
     await writeToDB(POSTS_DB_FILE, POSTS_DB);
 
@@ -123,7 +121,7 @@ async function editPost(req, res, next) {
         body: post.body,
         category: post.category,
         tags: post.tags,
-        imagePath: imagePath,
+        imagePath: post.imagePath,
         allowComments: post.allowComments
     }}))
 }
@@ -195,7 +193,8 @@ async function createComment(req, res) {
             authorId: user.id,
             authorName: user.name,
             authorImg: user.imagePath
-        }
+        },
+        replies: []
     }
     post.comments.push(comment);
     await writeToDB(POSTS_DB_FILE, POSTS_DB);
@@ -205,7 +204,7 @@ async function createComment(req, res) {
 }
 
 async function getComments(req, res) {
-    const {params, user} = req;
+    const {params} = req;
     const post = POSTS_DB.find(post => post.id === params.id);
     if(!post) {
         throw new AppError(404, 'Resource not found')
@@ -220,16 +219,34 @@ async function getComments(req, res) {
 }
 
 async function getSingleComment(req, res) {
-    const {params} = req;
-    console.log(params)
+    const {comment} = req
+    return status200(res, () => {
+        return JSON.stringify({
+            success: true,
+            comment: comment
+        })
+    })
+}
+
+async function editComment(req, res) {
+    const {comment} = req;
+    const data = await getRequestData(req, res);
+    const {text} = JSON.parse(data);
+
+    comment.text = text.trim();
+    await writeToDB(POSTS_DB_FILE, POSTS_DB);
+    return status200(res, () => {
+        return JSON.stringify({
+            success: true, 
+            comment: comment,
+        })
+    })
 }
 
 async function deleteComment(req, res) {
-    const  { params } = req;
-    const {postId, commentId} = params;
-    const post = POSTS_DB.find(post => post.id === postId);
-    if(!post) {
-        throw new AppError(404, 'Resource not found');
+    const  {post, commentId, user, comment} = req;
+    if(user.id !== post.author.authorId && user.id !== comment.author.authorId) {
+        throw new AppError(403, 'Forbiden access to resource')
     }
     const commentIndex = post.comments.findIndex(comment => comment.id === commentId);
     if(commentIndex === -1) {
@@ -239,7 +256,29 @@ async function deleteComment(req, res) {
     await writeToDB(POSTS_DB_FILE, POSTS_DB);
     return status200(res, () => {
         return JSON.stringify({success: true, message: 'comment deleted successfully'});
-    })
-
+    });
 }
-module.exports = {createPost, getPosts, editPost, getSinglePost, deletePost, likePost, createComment, getComments, getSingleComment, deleteComment}
+
+async function createReply(req, res) {
+    const {post, comment, user} = req;
+    const data = await getRequestData(req, res);
+    const {text} = JSON.parse(data);
+
+    const id = crypto.randomUUID();
+    const reply = {
+        id: id,
+        text: text.trim(),
+        author: {
+            authorId: user.id,
+            authorName: user.name,
+            authorImage: user.imagePath
+        },
+        createdAt: Date.now()
+    }
+    comment.replies.push(reply);
+    await writeToDB(POSTS_DB_FILE, POSTS_DB);
+    return status200(res, () => {
+        return JSON.stringify({success: true, })
+    })
+}
+module.exports = {createPost, getPosts, editPost, getSinglePost, deletePost, likePost, createComment, getComments, getSingleComment, deleteComment, editComment}

@@ -14,7 +14,7 @@ const server = createServer(async (req, res) => {
   const parsedURL = new URL(url, "http://localhost:3000");
   
   if (parsedURL.pathname.startsWith("/api/")) {
-   return router.handle(req, res)
+   return router.handle(req, res);
   }
 
   //file serving functionality

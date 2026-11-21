@@ -1,5 +1,6 @@
-const {createPost, getPosts, editPost, getSinglePost, deletePost, likePost, createComment, getComments, getSingleComment, deleteComment} = require("../../controllers/postsController")
-const extractTokenAndUser = require("../../middleware/extractTokenAndUser")
+const {createPost, getPosts, editPost, getSinglePost, deletePost, likePost, createComment, getComments, getSingleComment, deleteComment, editComment} = require("../../controllers/postsController")
+const extractTokenAndUser = require("../../middleware/extractTokenAndUser");
+const { extractPostAndComments } = require("../../utils/postHandlers");
 
 function postRoutes(router) {
     router.post('/api/posts', extractTokenAndUser, createPost);
@@ -11,9 +12,9 @@ function postRoutes(router) {
     //comments
     router.post('/api/posts/:id/comments', extractTokenAndUser, createComment)
     router.get('/api/posts/:id/comments', extractTokenAndUser, getComments)
-    router.patch('/api/posts/:id/comments/:id', extractTokenAndUser, )
-    router.delete('/api/posts/:postId/comments/:commentId', extractTokenAndUser, deleteComment)
-    router.get('/api/posts/:id/comments/:id', extractTokenAndUser, getSingleComment)
+    router.patch('/api/posts/:postId/comments/:commentId', extractTokenAndUser, extractPostAndComments, editComment)
+    router.delete('/api/posts/:postId/comments/:commentId', extractTokenAndUser, extractPostAndComments, deleteComment)
+    router.get('/api/posts/:postId/comments/:commentId', extractTokenAndUser, extractPostAndComments,getSingleComment)
 
 }
 

@@ -4,6 +4,7 @@ const multipartStreamParser = require("../middleware/multipart_processor");
 const optimizeImg = require("../middleware/optimizeImg");
 const { byteSizeHandler } = require("./responses");
 const { MAX_BYTE_SIZE, CATEGORY_LIST, PUBLIC_DIR, MIME_TYPES } = require("./state");
+const { json } = require("stream/consumers");
 const fsP = require('fs').promises;
 
 function getRequestData(req, res) {
@@ -73,6 +74,53 @@ async function cleanAndValidateFields(data) {
   return result;
 }
 
+async function sanitizeWorkoutLogs(req, res) {
+  const data = await getRequestData(req, res);
+  let {title, date, exercises, duration, effort, notes} = JSON.parse(data);
+  //type match guard
+  if(typeof title !== 'string' || typeof date !== 'string' || !Array.isArray(exercises)) {
+    throw new AppError(400, 'Invalid data format')
+  }
+
+  if(title.length < 3 || title.length > 30) {
+    throw new AppError(400, 'invalid title length')
+  }
+  title.trim();
+  if(date.length !== 10) {
+    throw new AppError(400, 'unexpected date characters')
+  }
+
+  for(const exercise of exercises) {
+    if(typeof exercise !== 'object') {
+      throw new AppError(400, 'Invalid data format')
+    }
+    if(exercise.sets && !Array.isArray(exercise.sets)) {
+      throw new AppError(400, 'Invalid data format')
+    }
+  }
+  //duration
+  if(duration === undefined) {
+    duration = 0
+  }
+  if (typeof duration !== 'number') {
+    throw new AppError(400, 'invalid data format')
+  }
+  //effort
+  if(effort === undefined) {
+    effort = 0;
+  } else if(typeof effort !== 'number') {
+    throw new AppError(400, 'Invalid data format')
+  }
+
+  //notes
+  if(notes === undefined) {
+    notes = '';
+  } else if(typeof notes !== 'string') {
+    throw new AppError(400, 'Invalid data format');
+  }
+  return {title, date, exercises, duration, effort, notes};
+}
+
 //file serving function
 async function fileServingFunctionality(req, res) {
   const {url} = req;
@@ -100,4 +148,4 @@ async function fileServingFunctionality(req, res) {
 
 
 }
-module.exports = {getRequestData, processImg, cleanAndValidateFields, fileServingFunctionality}
+module.exports = {getRequestData, processImg, cleanAndValidateFields, fileServingFunctionality, sanitizeWorkoutLogs}

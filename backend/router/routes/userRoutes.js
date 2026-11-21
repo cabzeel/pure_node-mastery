@@ -1,4 +1,4 @@
-const { getUser, updateUserInfo, deleteUser, updatePassword } = require("../../controllers/usersController")
+const { getUser, updateUserInfo, deleteUser, updatePassword, getUserFromQuery } = require("../../controllers/usersController")
 const extractTokenAndUser = require("../../middleware/extractTokenAndUser");
 
 
@@ -7,6 +7,7 @@ module.exports = {
         router.get('/api/users/:id', extractTokenAndUser, getUser);
         router.patch('/api/users/:id', extractTokenAndUser, updateUserInfo);
         router.delete('/api/users/:id', extractTokenAndUser, deleteUser);
-        router.patch('/api/users/:id/password', extractTokenAndUser, updatePassword)
+        router.patch('/api/users/:id/password', extractTokenAndUser, updatePassword);
+        router.get('/api/users', extractTokenAndUser, getUserFromQuery);
     }
 }

@@ -22,13 +22,34 @@ function verifyPostAuthor(req) {
 async function processMultipartData(req, res) {
     const parser = new multipartStreamParser(req, res);
     const {filepath, fields} = await parser.startParsing();
-    console.log(filepath, fields)
-    console.log(typeof filepath)
     const result = await cleanAndValidateFields(fields);
-    const imagePath = await optimizeImg(filepath, 'postPic');
-    console.log(imagePath)
+    let imagePath;
+    if(!filepath) {
+        imagePath = '';
+        return {result, imagePath}
+    } 
+    imagePath = await optimizeImg(filepath, 'postPic');
 
     return {result, imagePath};
 }
 
-module.exports = { verifyPostAuthor, processMultipartData }
+async function extractPostAndComments(req, res, next) {
+    const {params} = req;
+    const {postId, commentId} = params;
+    const post = POSTS_DB.find(post => post.id === postId) 
+    if(!post) {
+        throw new AppError(404, 'Resource not found');
+    }
+
+    const comment = post.comments.find(com => com.id === commentId);
+    if(!comment) {
+        throw new AppError(404, 'Resource not found')
+    }
+    req.post = post;
+    req.postId = postId;
+    req.commentId = commentId;
+    req.comment = comment;
+    next();
+}
+
+module.exports = { verifyPostAuthor, processMultipartData, extractPostAndComments }
