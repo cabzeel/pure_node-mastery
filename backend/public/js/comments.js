@@ -12,17 +12,29 @@ POST   /api/posts/:id/comments   <- { "text": "..." } (1-500 chars) -> 201 with 
 GET    /api/posts/:id/comments/:commentId/replies   -> { success:true, data:[ ...same shape, without replyCount ] }
 POST   /api/posts/:id/comments/:commentId/replies   <- { "text": "..." } -> 201 with the new reply
 POST   /api/posts/:id/comments/:commentId/like      (toggles) -> { success:true, likesCount }
-PATCH  /api/posts/:id/comments/:commentId   <- { "text": "..." }   (a reply is a comment too: same routes, its own id)
-DELETE /api/posts/:id/comments/:commentId`;
+POST   /api/posts/:id/comments/:commentId/replies/:replyId/like   (toggles) -> { success:true, likesCount }
+PATCH  /api/posts/:id/comments/:commentId   <- { "text": "..." }
+DELETE /api/posts/:id/comments/:commentId
+PATCH  /api/posts/:id/comments/:commentId/replies/:replyId   <- { "text": "..." }   (a reply is addressed THROUGH its parent comment)
+DELETE /api/posts/:id/comments/:commentId/replies/:replyId
+
+replyCount is how the panel knows WHICH comments have replies. Send it (0 when none). Without it every comment offers "View replies", and the post's comment total can't be rebuilt from the list.`;
 
 // Opens in the shared dialog. n = comments + replies (like Instagram); onCount(n) keeps the post card's number in step.
 export function openComments(p, count, onCount) {
+  let exact = true; // is n built from the list? False when the server sends no replyCount: n then stays what the post card showed
   let n = count,
     target = null,
     mention = ''; // target = who I am replying to
   const off = p.allowComments === false || p.allowComments === 'false';
   const postMine = owner(p) !== undefined && String(owner(p)) === USER_ID; // I wrote this post, so I can delete any comment under it
   const rows = new Map(); // top-level comment id -> { refresh(), added(reply) }
+  // Where one item lives. A comment: /comments/:commentId. A reply lives UNDER its parent: /comments/:commentId/replies/:replyId.
+  const itemRoute = (c, parent) =>
+    parent ? `${ROUTES.replies(p.id, parent.id)}/${c.id}` : ROUTES.comment(p.id, c.id);
+  // Likes are addressed the same way: a reply is liked THROUGH its parent comment, never as if it were a top-level comment.
+  const likeRoute = (c, parent) =>
+    parent ? `${itemRoute(c, parent)}/like` : ROUTES.commentLike(p.id, c.id);
   const list = h('div', { class: 'comments-list' });
   const emptyNote = () =>
     h('p', { class: 'muted empty-note' }, 'No comments yet. Be the first.');
@@ -68,6 +80,10 @@ export function openComments(p, count, onCount) {
 
   const row = (c, parent = null) => {
     // parent = the top-level comment when c is a reply
+    if (!parent) {
+      const k = c.replyCount == null ? NaN : Number(c.replyCount);
+      c.replyCount = Number.isFinite(k) ? k : undefined; // a number, or undefined = "the server didn't say". Those are NOT the same as 0.
+    }
     const name = String(c.author?.authorName ?? c.authorName ?? 'Someone');
     const mineC = String(c.author?.authorId ?? c.authorId) === USER_ID;
     const pic =
@@ -87,7 +103,7 @@ export function openComments(p, count, onCount) {
     const likeN = h('small', { class: 'muted like-n' });
     const heart = likeControl({
       item: c,
-      route: ROUTES.commentLike(p.id, c.id),
+      route: likeRoute(c, parent),
       label: 'Like comment',
       render: (k) => {
         likeN.textContent = k > 0 ? String(k) : '';
@@ -122,22 +138,31 @@ export function openComments(p, count, onCount) {
     let shown = false,
       loaded = false;
     const drawToggle = () => {
-      const k = c.replyCount ?? 0;
-      toggle.hidden = k < 1;
+      const k = c.replyCount;
+      toggle.hidden = k === 0; // only a known zero hides it. With no count we can't tell, so people must still be able to look
       toggle.textContent = shown
         ? 'Hide replies'
-        : `View ${k} ${k === 1 ? 'reply' : 'replies'}`;
+        : k == null
+          ? 'View replies'
+          : `View ${k} ${k === 1 ? 'reply' : 'replies'}`;
       box.hidden = !shown;
     };
     async function loadReplies() {
       box.replaceChildren(h('div', { class: 'skeleton comment-skel' }));
       try {
+        const items = many(await api('GET', ROUTES.replies(p.id, c.id)));
         box.replaceChildren(
-          ...many(await api('GET', ROUTES.replies(p.id, c.id))).map((r) =>
-            row(r, c),
-          ),
+          ...(items.length
+            ? items.map((r) => row(r, c))
+            : [h('p', { class: 'muted empty-note' }, 'No replies yet.')]),
         );
         loaded = true;
+        // Now the real number is known (also when the server never sent one). n only moves if it was built from the list.
+        if (exact && c.replyCount !== items.length) {
+          n += items.length - (c.replyCount ?? 0);
+          onCount(n);
+        }
+        c.replyCount = items.length;
       } catch (e) {
         box.replaceChildren(errorBox(e, COMMENTS_SPEC, loadReplies));
       }
@@ -166,7 +191,10 @@ export function openComments(p, count, onCount) {
         async added(r) {
           c.replyCount = (c.replyCount ?? 0) + 1;
           shown = true;
-          if (loaded && r) box.append(row(r, c));
+          if (loaded && r) {
+            box.querySelector('.empty-note')?.remove();
+            box.append(row(r, c));
+          }
           else await loadReplies();
           drawToggle();
         },
@@ -214,7 +242,7 @@ export function openComments(p, count, onCount) {
         if (text === c.text) return stop(); // nothing changed, no request
         save.disabled = field.disabled = true;
         try {
-          const d = await api('PATCH', ROUTES.comment(p.id, c.id), { text });
+          const d = await api('PATCH', itemRoute(c, parent), { text });
           const u = d.data ?? d.comment ?? {};
           c.text = typeof u.text === 'string' ? u.text : text; // the server may have cleaned the text
           c.editedAt = u.editedAt ?? Date.now();
@@ -247,15 +275,18 @@ export function openComments(p, count, onCount) {
       list.replaceChildren(
         ...(items.length ? items.map((c) => row(c)) : [emptyNote()]),
       );
-      n = items.reduce((t, c) => t + 1 + (c.replyCount ?? 0), 0);
-      onCount(n); // the list is the truth
+      exact = items.every((c) => c.replyCount != null); // row() has settled each count above
+      if (exact) {
+        n = items.reduce((t, c) => t + 1 + c.replyCount, 0);
+        onCount(n); // the list is the truth
+      } // else: some comments don't say how many replies they have, so keep the number the post card showed instead of an undercount
     } catch (e) {
       list.replaceChildren(errorBox(e, COMMENTS_SPEC, load));
     }
   }
   async function remove(c, el, parent) {
     try {
-      await api('DELETE', ROUTES.comment(p.id, c.id)); // replies use the same route: a reply is a comment
+      await api('DELETE', itemRoute(c, parent)); // a reply is deleted through its parent comment
       el.remove();
       if (parent) {
         parent.replyCount = Math.max(0, (parent.replyCount ?? 0) - 1);

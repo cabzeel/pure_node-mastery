@@ -8,15 +8,6 @@ const { writeToDB } = require("../utils/db");
 const { USERS_DB_FILE, USERS_DB } = require("../utils/state");
 const AppError = require("../middleware/AppError");
 
-// function getProfilePic(req, res) {
-//     const { user } = req;
-//     if (!user) {
-//       throw new AppError(401, "Invalid Credentials");
-//     }
-//     const imgPath = user.picMetaData.filepath;
-//     return serveImg(res, imgPath);
-// }
-
 async function updateProfilePic(req, res, next) {
   const {user} = req;
     const data = await processImg(req, res);

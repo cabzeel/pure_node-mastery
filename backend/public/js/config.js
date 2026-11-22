@@ -20,6 +20,8 @@ export const ROUTES = {
   unshare: (id, uid) => `/api/workouts/${encodeURIComponent(id)}/share/${encodeURIComponent(uid)}`, // DELETE (owner only)
   comments: (id) => `/api/posts/${id}/comments`,           // GET list | POST { text }
   comment: (id, cid) => `/api/posts/${id}/comments/${cid}`, // PATCH { text } | DELETE
+  replies: (id, cid) => `/api/posts/${id}/comments/${cid}/replies`,  // GET list | POST { text }. A reply is a comment too: edit, delete and like use the comment routes
+  commentLike: (id, cid) => `/api/posts/${id}/comments/${cid}/like`, // POST toggles -> { success, likesCount }
   like: (id) => `/api/posts/${id}/like`, // POST toggles: likes, or unlikes if you already liked it -> { success, likesCount }
   logout: '/api/logout',          // POST
 };

@@ -8,7 +8,7 @@ const { status200 } = require("../utils/responses");
 const { USERS_DB, POSTS_DB, POSTS_DB_FILE, PUBLIC_DIR, USERS_DB_FILE } = require("../utils/state");
 const path = require('path')
 const crypto = require('crypto');
-const { verifyPostAuthor, processMultipartData } = require("../utils/postHandlers");
+const { verifyPostAuthor, processMultipartData, handleLike } = require("../utils/postHandlers");
 
 async function createPost(req, res, next) {
     const {user} = req;
@@ -82,7 +82,6 @@ async function getPosts(req, res, next) {
 
 async function getSinglePost(req, res, next) {
     const {user, params} = req;
-    console.log(params.id);
     const post = POSTS_DB.find(post => post.id === params.id);
     if(!post) {
         throw new AppError(404, 'Post not found..')
@@ -112,7 +111,6 @@ async function editPost(req, res, next) {
         unlinkSync(oldImgPath);
     }
     }
-    console.log(post.imagePath)
     //write changes to database...
     await writeToDB(POSTS_DB_FILE, POSTS_DB);
 
@@ -152,24 +150,7 @@ async function likePost(req, res) {
     if(!post.hasLiked) {
         post.hasLiked = [];
     }
-    if(post.hasLiked.includes(user.id)) {
-        const index = post.hasLiked.findIndex(i => i === user.id);
-        post.hasLiked.splice(index, 1);
-        post.likesCount = post.hasLiked.length;
-        await writeToDB(POSTS_DB_FILE, POSTS_DB)
-        return status200(res, () => {
-            return JSON.stringify({
-                success: true, 
-                likesCount:post.likesCount
-            })
-        })
-    }
-    post.hasLiked.push(user.id);
-    post.likesCount = post.hasLiked.length;
-    await writeToDB(POSTS_DB_FILE, POSTS_DB)
-    return status200(res, () => {
-        return JSON.stringify({success: true, likesCount: post.likesCount});
-    })
+    await handleLike(post, user.id, res);
 }
 
 //Comments...create comment, edit comment, delete comment, fetch all comments
@@ -194,7 +175,11 @@ async function createComment(req, res) {
             authorName: user.name,
             authorImg: user.imagePath
         },
-        replies: []
+        hasLiked:[],
+        replies: [],
+        likesCount: 0,
+        replyCount: 0
+
     }
     post.comments.push(comment);
     await writeToDB(POSTS_DB_FILE, POSTS_DB);
@@ -209,10 +194,17 @@ async function getComments(req, res) {
     if(!post) {
         throw new AppError(404, 'Resource not found')
     }
+    let comments = [];
+    for(const {id, text, createdAt, author, replies, replyCount} of post.comments) {
+        const publicComment = {
+            id, text, createdAt, author, replies, replyCount
+        }
+        comments.push(publicComment)
+    }
     return status200(res, () => {
         return JSON.stringify({
             success: true,
-            comments: post.comments
+            comments
         })
     })
 
@@ -259,6 +251,11 @@ async function deleteComment(req, res) {
     });
 }
 
+async function likeComment(req, res, next) {
+    const {user, comment} = req
+    await handleLike(comment, user.id, res)
+}
+
 async function createReply(req, res) {
     const {post, comment, user} = req;
     const data = await getRequestData(req, res);
@@ -273,12 +270,77 @@ async function createReply(req, res) {
             authorName: user.name,
             authorImage: user.imagePath
         },
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        hasLiked: [],
+        likesCount:0
     }
     comment.replies.push(reply);
+    comment.replyCount = comment.replies.length
     await writeToDB(POSTS_DB_FILE, POSTS_DB);
     return status200(res, () => {
-        return JSON.stringify({success: true, })
+        return JSON.stringify({success: true, message: 'reply Created successfully'})
     })
 }
-module.exports = {createPost, getPosts, editPost, getSinglePost, deletePost, likePost, createComment, getComments, getSingleComment, deleteComment, editComment}
+
+async function getReplies(req, res) {
+    const {comment} = req;
+    return status200(res, () => {
+        return JSON.stringify({success: true, data: comment.replies})
+    })
+}
+async function editReply(req, res) {
+    const {comment, params} = req;
+    const {replyId} = params;
+    const reply = comment.replies.find(rep => rep.id === replyId);
+    if(!reply) {
+        throw new AppError(404, 'Resource not found...in reply')
+    }
+    const data = await getRequestData(req, res);
+    const {text} = JSON.parse(data);
+    reply.text = text.trim();
+    await writeToDB(POSTS_DB_FILE, POSTS_DB);
+    return status200(res, () => {
+        return JSON.stringify({success: true, message: 'reply edited successfully'});
+    })
+
+}
+
+async function getSingleReply(req, res) {
+    const {comment, replyId} = req;
+    const reply = comment.replies.find(rep => rep.id === replyId);
+    if(!reply) {
+        throw new AppError(404, 'Resource not found');
+    }
+    return status200(res, ()=> {
+        return JSON.stringify({success: true,  reply})
+    })
+}
+
+async function deleteReply(req, res) {
+    const {comment, params} = req;
+    const {replyId} = params;
+
+    const index = comment.replies.findIndex(i => i.id === replyId);
+
+    if(index === -1) {
+        throw new AppError(404, 'Reply not found');
+    }
+    comment.replies.splice(index, 1);
+    await writeToDB(POSTS_DB_FILE, POSTS_DB);
+    return status200(res, ()=> {
+        return JSON.stringify({success: true, message: 'Reply deleted successfully'})
+    })
+}
+async function likeReply(req, res) {
+    
+    const {user, params, comment} = req;
+    const {replyId} = params;
+    const reply = comment.replies.find(rep => rep.id === replyId);
+
+    if(!reply) {
+        throw new AppError(404, 'Resource not found...like');
+    }
+    await handleLike(reply, user.id, res);
+}
+
+module.exports = {createPost, getPosts, editPost, getSinglePost, deletePost, likePost, createComment, getComments, getSingleComment, deleteComment, editComment, likeComment, createReply, getReplies, editReply, getSingleReply, deleteReply, likeReply}

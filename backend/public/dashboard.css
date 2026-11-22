@@ -1405,3 +1405,65 @@ dialog.sheet[open] {
   padding: 0.35rem 0.85rem;
   font-size: 0.85rem;
 }
+/* comment replies + comment likes (append at the very end of dashboard.css) */
+.comment-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 0.1rem;
+}
+.comment-meta .link {
+  font-size: 0.78rem;
+}
+.comment-actions {
+  display: inline-flex;
+  align-self: center;
+}
+.comment-actions .icon-btn {
+  width: 1.7rem;
+  height: 1.7rem;
+}
+.comment-actions .ico {
+  width: 1rem;
+  height: 1rem;
+}
+.comment-like {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 1.8rem;
+}
+.comment-like .icon-btn {
+  width: 1.9rem;
+  height: 1.9rem;
+}
+.comment-like .ico {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+.like-n {
+  font-size: 0.72rem;
+  min-height: 1em;
+}
+.replies {
+  margin-top: 0.7rem;
+  padding-left: 0.8rem;
+  border-left: 2px solid var(--hair);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.reply-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.15rem 0.6rem 0.15rem 1.1rem;
+  background: var(--accent-tint);
+  font-size: 0.82rem;
+}
+.reply-bar .icon-btn {
+  width: 1.8rem;
+  height: 1.8rem;
+}

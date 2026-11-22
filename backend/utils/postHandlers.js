@@ -1,8 +1,10 @@
-const { POSTS_DB } = require("./state");
+const { POSTS_DB, POSTS_DB_FILE } = require("./state");
 const AppError = require("../middleware/AppError");
 const multipartStreamParser = require("../middleware/multipart_processor");
 const { cleanAndValidateFields } = require("./parser");
 const optimizeImg = require("../middleware/optimizeImg");
+const { writeToDB } = require("./db");
+const { status200 } = require("./responses");
 
 function verifyPostAuthor(req) {
     const {params, user} = req;
@@ -52,4 +54,22 @@ async function extractPostAndComments(req, res, next) {
     next();
 }
 
-module.exports = { verifyPostAuthor, processMultipartData, extractPostAndComments }
+async function handleLike(target, targetId, res) {
+    if(target.hasLiked.includes(targetId)) {
+        const index = target.hasLiked.findIndex(i => i === targetId);
+        target.hasLiked.splice(index, 1);
+        target.likesCount = target.length;
+        await writeToDB(POSTS_DB_FILE, POSTS_DB);
+        return status200(res, () => {
+            return JSON.stringify({success: true, likesCount: target.likesCount})
+        })
+    }
+    target.hasLiked.push(targetId);
+    target.likesCount = target.hasLiked.length;
+    await writeToDB(POSTS_DB_FILE, POSTS_DB);
+    return status200(res, () => {
+        return JSON.stringify({success: true, likesCount: target.likesCount})
+    })
+}
+
+module.exports = { verifyPostAuthor, processMultipartData, extractPostAndComments, handleLike }
